@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_combine001_record_list" model="ir.ui.view">
+        <field name="name">combine001.record.list</field>
+        <field name="model">combine001.record</field>
+        <field name="arch" type="xml">
+            <list string="Combine001 Records">
+                <field name="name"/>
+                <field name="note"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_combine001_record_form" model="ir.ui.view">
+        <field name="name">combine001.record.form</field>
+        <field name="model">combine001.record</field>
+        <field name="arch" type="xml">
+            <form string="Combine001 Record">
+                <sheet>
+                    <group>
+                        <field name="name"/>
+                        <field name="note"/>
+                        <field name="active"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_combine001_record" model="ir.actions.act_window">
+        <field name="name">Combine001</field>
+        <field name="res_model">combine001.record</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <menuitem id="menu_combine001_root" name="Combine001" sequence="60"/>
+    <menuitem id="menu_combine001_records" name="Records" parent="menu_combine001_root" action="action_combine001_record" sequence="10"/>
+</odoo>
