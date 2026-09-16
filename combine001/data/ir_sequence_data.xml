@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+    <record id="seq_tax_adjustment" model="ir.sequence">
+        <field name="name">Combine001 Tax Ledger Adjustment</field>
+        <field name="code">combine001.tax.adjustment</field>
+        <field name="prefix">TADJ/%(year)s/</field>
+        <field name="padding">4</field>
+        <field name="company_id" eval="False"/>
+    </record>
+</odoo>

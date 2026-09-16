@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <menuitem id="menu_combine001_root" name="Combine001" sequence="60"/>
+
+    <menuitem id="menu_combine001_configuration" name="Configuration"
+              parent="menu_combine001_root" sequence="90"
+              groups="base.group_system,account.group_account_manager"/>
+    <menuitem id="menu_combine001_customer_item_limit" name="Customer Item Quantity Limits"
+              parent="menu_combine001_configuration" action="action_customer_item_limit" sequence="10"/>
+    <menuitem id="menu_combine001_charge_type" name="Additional Charge Types"
+              parent="menu_combine001_configuration" action="action_charge_type" sequence="20"/>
+    <menuitem id="menu_combine001_commission_agent" name="Commission Agents"
+              parent="menu_combine001_configuration" action="action_commission_agent" sequence="30"/>
+
+    <menuitem id="menu_combine001_commission" name="Commission"
+              parent="menu_combine001_root" sequence="20"
+              groups="sales_team.group_sale_manager,account.group_account_user,combine001.group_auditor"/>
+    <menuitem id="menu_combine001_commission_line" name="Commission Report"
+              parent="menu_combine001_commission" action="action_commission_line" sequence="10"/>
+
+    <menuitem id="menu_combine001_taxation" name="Taxation"
+              parent="menu_combine001_root" sequence="30"
+              groups="combine001.group_tax_officer,account.group_account_manager,combine001.group_auditor"/>
+    <menuitem id="menu_combine001_tax_ledger" name="Tax General Ledger"
+              parent="menu_combine001_taxation" action="action_tax_ledger" sequence="10"/>
+    <menuitem id="menu_combine001_tax_adjustment" name="Manual Tax Ledger Adjustments"
+              parent="menu_combine001_taxation" action="action_tax_adjustment" sequence="20"/>
+</odoo>
