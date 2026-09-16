@@ -21,7 +21,8 @@ Implements the Business Requirements Document "Odoo ERP Enhancements v1.0"
 * Separate Tax Ledger view and a controlled manual Tax Ledger Adjustment
   approval flow with full audit trail
 * Role-based security groups (Tax Officer, Auditor) aligned to the BRD's
-  RACI / access matrix
+  RACI / access matrix, plus one demo user per BRD role (Section 3.1)
+  already assigned to the correct groups
 
 Several points are explicitly left open in the BRD for client sign-off
 (Section 12, "Open Items for Functional Design"). This module ships a
@@ -48,6 +49,7 @@ README for the assumptions made and how to change them:
         'security/ir.model.access.csv',
         'data/combine001_charge_data.xml',
         'data/ir_sequence_data.xml',
+        'data/combine001_users_data.xml',
         'views/product_template_views.xml',
         'views/customer_item_limit_views.xml',
         'views/charge_type_views.xml',
@@ -57,6 +59,7 @@ README for the assumptions made and how to change them:
         'views/sale_order_views.xml',
         'views/tax_adjustment_views.xml',
         'views/tax_ledger_views.xml',
+        'views/audit_views.xml',
         'views/combine001_menus.xml',
     ],
     'installable': True,

@@ -23,6 +23,41 @@ Odoo 19 custom app implementing the "Odoo ERP Enhancements v1.0" BRD
 | 5.8 | Chart of Accounts restructuring | native `account.move.line.partner_id` (Partner Ledger) — no customer-level GL accounts created by this module |
 | 7 | Separate Tax Ledger + controlled manual adjustment | `views/tax_ledger_views.xml`, `models/tax_adjustment.py` |
 | 10 | Security groups (Tax Officer, Auditor) + audit trail via chatter | `security/combine001_security.xml` |
+| 3.1 | One demo user per defined role, pre-assigned to the right groups | `data/combine001_users_data.xml` |
+
+## Demo users (BRD Section 3.1)
+
+One user per role is created on install, already in the group(s) from the
+BRD's Section 3.2 access matrix:
+
+| Role | Login |
+|---|---|
+| Sales User | `sales.user@combine001.local` |
+| Sales Manager | `sales.manager@combine001.local` |
+| Warehouse / Inventory User | `warehouse.user@combine001.local` |
+| Accountant | `accountant@combine001.local` |
+| Finance Manager / Controller | `finance.manager@combine001.local` |
+| Tax Officer | `tax.officer@combine001.local` |
+| System Administrator | `system.admin@combine001.local` |
+| Auditor | `auditor@combine001.local` (read-only on Sales Orders, Invoices,
+  Payments, Deliveries and every Combine001 model — see `views/audit_views.xml`) |
+
+**No password is set** — these are placeholder accounts committed to a
+public git repo, and a hardcoded password there would be a credential
+leak. After install, a System Administrator sets each one's password
+locally via *Settings > Users & Companies > Users > (user) > Action >
+Change Password*, or triggers *Send Password Reset Instructions* if
+outgoing mail is configured. They're meant as a starting point for
+setup/UAT — rename, reassign, or deactivate them and create real named
+accounts once the client's staff list is confirmed.
+
+Each user's `group_ids` lists the full closure of groups for that role
+explicitly (e.g. Sales Manager includes the Salesman group, Finance
+Manager includes the Accountant group) rather than relying on a group's
+`implied_ids` to cascade automatically: testing on this Odoo 19 build
+showed `implied_ids` does not propagate to a user created via a plain
+`(6, 0, [...])` write on `group_ids` in XML data — see the comment in
+`data/combine001_users_data.xml`.
 
 ## Assumptions made for the BRD's open items (Section 12)
 

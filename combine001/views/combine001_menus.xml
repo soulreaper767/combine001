@@ -25,4 +25,16 @@
               parent="menu_combine001_taxation" action="action_tax_ledger" sequence="10"/>
     <menuitem id="menu_combine001_tax_adjustment" name="Manual Tax Ledger Adjustments"
               parent="menu_combine001_taxation" action="action_tax_adjustment" sequence="20"/>
+
+    <menuitem id="menu_combine001_audit" name="Audit"
+              parent="menu_combine001_root" sequence="40"
+              groups="combine001.group_auditor,account.group_account_manager,base.group_system"/>
+    <menuitem id="menu_combine001_audit_sale_orders" name="Sales Orders"
+              parent="menu_combine001_audit" action="action_audit_sale_orders" sequence="10"/>
+    <menuitem id="menu_combine001_audit_invoices" name="Customer Invoices"
+              parent="menu_combine001_audit" action="action_audit_invoices" sequence="20"/>
+    <menuitem id="menu_combine001_audit_payments" name="Payments"
+              parent="menu_combine001_audit" action="action_audit_payments" sequence="30"/>
+    <menuitem id="menu_combine001_audit_deliveries" name="Deliveries"
+              parent="menu_combine001_audit" action="action_audit_deliveries" sequence="40"/>
 </odoo>
