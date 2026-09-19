@@ -81,43 +81,66 @@ on every future upgrade too:
 - Accounts, account groups, bank journals and Customers/Vendors are all
   **found-or-created by their natural key** (code / name) instead of
   blindly recreated, so re-running never produces duplicates.
-- **Opening balances are only ever set the first time an account is
-  created** — never re-applied to an account that already exists. (Odoo's
-  own opening-move mechanism folds a rounding-adjustment line into the
-  same "Undistributed Profits" account; re-setting an existing account's
-  opening balance on a second run corrupted that line and threw "the
-  entry is not balanced" — caught by testing 3 consecutive upgrades.)
-- If the opening move has already been **posted** (i.e. the business has
-  gone live on this data), a later upgrade **skips re-touching the Chart
-  of Accounts and opening balances entirely** rather than force-unlocking
-  and rewriting live financial data — logged as a warning. Customers,
-  Vendors and bank journals still refresh normally either way.
+- Until the opening balance is posted (see below), every run does a
+  **full, clean rebuild**: any pre-existing journal entries for the
+  company are cleared first (see step 1) so accounts/groups/opening
+  balances always come out correct and consistent — no partial/stale
+  leftovers, no "only some of it shows up."
+- Opening balances are (re)computed via Odoo's native
+  `opening_debit`/`opening_credit` fields — the same mechanism Odoo's own
+  CSV-import UI uses — every time the pre-posted rebuild runs, right after
+  the reset in step 1 clears whatever the previous run's lines were, so
+  there's never a stale line for Odoo's own auto-balancing mechanism to
+  collide with. (Setting these fields doesn't build the move
+  synchronously — it queues a precommit callback — so the import forces
+  an `env.cr.flush()` before posting, otherwise `account_opening_move_id`
+  reads back empty.)
+- Once the opening move has actually been **posted** (i.e. the business
+  has gone live on this data), a later upgrade **skips the Chart of
+  Accounts / opening balance / currency part entirely** rather than
+  resetting and rewriting live financial data — logged as a warning.
+  Customers, Vendors and bank journals still refresh normally either way.
 
 **What it does, step by step:**
 
-1. Sets the company currency to **PKR** (activating the currency record
-   if needed) — skipped with a warning if the company already has posted
-   journal items, since Odoo forbids changing currency at that point.
-2. Cancels Odoo's own fallback "auto-install a generic Chart of Accounts"
+1. Unless the opening move is already posted (skip straight to step 6 if
+   so — see above): **clears every existing journal entry** for the
+   company, posted or draft (unposts first if needed). This is what
+   actually fixes "only 2 lines show in the Trial Balance" and "still in
+   USD" — both were caused by leftover entries from *before* this import
+   ever completed correctly (e.g. Odoo's own fallback CoA auto-install,
+   step 3, completing before this module's fix was in place, or ad hoc
+   testing) sitting there blocking things: Odoo's Trial Balance/General
+   Ledger/Balance Sheet only show *posted* entries by default, so with
+   the real 1,007-account opening balance stuck in draft, only those
+   stray entries were visible; and Odoo flatly refuses to change company
+   currency while *any* `account.move.line` exists at all (posted or
+   draft) — including this import's own opening balance from a prior run,
+   which is why the currency fix kept silently failing after the very
+   first attempt.
+2. Sets the company currency to **PKR**, now that step 1 has cleared
+   anything that would block it (activates the PKR currency record if
+   needed).
+3. Cancels Odoo's own fallback "auto-install a generic Chart of Accounts"
    behaviour, which would otherwise create a *second*, competing default
    CoA and journals for any company with no localization chosen (see the
    big comment on `_combine001_cancel_generic_coa_auto_install` — this was
    the one genuinely surprising Odoo 19 internal to work around).
-3. Skips straight to step 7 if the opening move is already posted (see
-   above); otherwise:
 4. Creates a `Miscellaneous Operations` (general), `Customer Invoices`
    (sale) and `Vendor Bills` (purchase) journal if the company doesn't
    already have one of each — needed for day-to-day invoicing and for the
    opening move itself.
 5. Imports **126 account groups** (Level 1–3 of the source CoA) and
-   **1,007 accounts** (Level 4 posting accounts), using Odoo's native
-   `opening_debit`/`opening_credit` fields on newly-created accounts only
-   — the same mechanism Odoo's own CSV-import UI uses, so the opening move
-   is built by Odoo itself, not hand-constructed. **It is left in `draft`
-   state** on purpose: real opening balances (a ~21.4 billion Rs trial
-   balance) should be reviewed by a Finance Manager/Accountant before
-   posting, not auto-posted blind. Any residual rounding is auto-balanced
-   by Odoo against the equity "Undistributed Profits" account.
+   **1,007 accounts** (Level 4 posting accounts) with their opening
+   balances, then **posts the opening move** — real opening balances (a
+   ~21.4 billion Rs trial balance) would ideally be reviewed by a Finance
+   Manager before posting, but it's posted automatically here so the data
+   actually shows up in every standard report; any residual rounding is
+   auto-balanced by Odoo against the equity "Undistributed Profits"
+   account. Once posted, it's protected from every future rebuild (see
+   above) — a correction after that point should be a proper reviewed
+   accounting adjustment, not another module upgrade silently rewriting
+   it.
 6. **Debtors/Creditors control accounts (BRD COA-001/002/003):** instead
    of importing the source's 331 individual vendor-named and 33
    individual customer-named GL leaf accounts, this creates one **control

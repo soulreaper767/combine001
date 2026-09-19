@@ -40,27 +40,37 @@ class ResCompany(models.Model):
         non-noupdate <function> tag in data/combine001_import_run.xml,
         not via post_init_hook - post_init_hook only fires on install,
         never on upgrade, which is why this didn't show up after the
-        first deploy). Safe to re-run: accounts/groups/journals are
-        found-or-created by their natural key (code / name) instead of
-        blindly recreated, and the risky part (opening balances, currency)
-        is skipped once the opening move has actually been posted, so a
-        later upgrade can't silently rewrite a live, reviewed opening
-        balance.
+        first deploy). Safe to re-run: accounts/groups/journals/partners
+        are found-or-created by their natural key (code / name) instead of
+        blindly recreated.
+
+        Once the opening balance has actually been posted (i.e. the
+        business has gone live on this data), a later upgrade skips the
+        whole Chart of Accounts / opening balance / currency part
+        entirely rather than rewriting live financial data - only
+        Customers/Vendors/bank journals keep refreshing after that point.
+        Until then, every run does a full, clean rebuild: any existing
+        journal entries (including stray/test ones from before this
+        import ever completed correctly, which also blocks changing the
+        company currency) are cleared first, so this is always safe to
+        re-run right up until go-live.
         """
         company = self.env.company
         _logger.info("Combine001: running import for company %s", company.name)
 
-        self._combine001_set_currency(company)
         self._combine001_cancel_generic_coa_auto_install()
 
         if company.opening_move_posted():
             _logger.warning(
                 "Combine001: opening move is already posted - skipping the "
-                "Chart of Accounts / opening balance (re-)import to avoid "
-                "rewriting live data. Customers/Vendors are still refreshed."
+                "Chart of Accounts / opening balance / currency (re-)import "
+                "to avoid rewriting live data. Customers/Vendors/bank "
+                "journals are still refreshed."
             )
             account_by_code = {a.code: a.id for a in self.env['account.account'].search([])}
         else:
+            self._combine001_reset_accounting(company)
+            self._combine001_set_currency(company)
             self._combine001_ensure_baseline_journals(company)
             self._combine001_import_account_groups(company)
             account_by_code = self._combine001_import_accounts(company)
@@ -69,6 +79,7 @@ class ResCompany(models.Model):
                 company.account_opening_date = _OPENING_DATE
             if not company.chart_template:
                 company.chart_template = 'generic_coa'
+            self._combine001_post_opening_move(company)
 
         self._combine001_import_bank_journals(company, account_by_code)
         self._combine001_import_partners(
@@ -81,6 +92,48 @@ class ResCompany(models.Model):
         )
 
         _logger.info("Combine001: import complete - %s accounts on record.", len(account_by_code))
+
+    # -- reset ------------------------------------------------------------
+
+    def _combine001_reset_accounting(self, company):
+        """Clear every existing account.move (posted or draft) for this
+        company before rebuilding the opening balance from scratch.
+
+        Only ever called while the opening move is NOT posted (see
+        caller), so this can never touch real, reviewed go-live data - it
+        only clears leftover/test entries from before a correct import
+        ever completed (Odoo's own fallback CoA auto-install runs the
+        moment the 'account' module is first installed, before this
+        module's own post_init/upgrade logic gets a chance to run, and
+        may have posted its own default setup; anything created while
+        testing before this import was wired up correctly counts too).
+        Those stray entries are also *exactly* what blocks the company
+        currency change below (Odoo's `_existing_accounting()` check
+        triggers on any account.move.line at all, posted or draft -
+        including this module's own opening balance from a prior run)."""
+        Move = self.env['account.move'].with_context(active_test=False)
+        moves = Move.search([('company_id', 'child_of', company.id)])
+        if not moves:
+            return
+        try:
+            posted = moves.filtered(lambda m: m.state == 'posted')
+            if posted:
+                posted.button_draft()
+            moves.unlink()
+        except UserError as exc:
+            _logger.warning(
+                "Combine001: could not clear %s pre-existing journal entries "
+                "(%s) - they may be locked/hashed. Leaving them in place; "
+                "this may also block the currency change below.",
+                len(moves), exc,
+            )
+            return
+        company.account_opening_move_id = False
+        _logger.warning(
+            "Combine001: cleared %s pre-existing journal entries before "
+            "rebuilding the Chart of Accounts and opening balance from "
+            "scratch.", len(moves),
+        )
 
     # -- currency -------------------------------------------------------
 
@@ -228,31 +281,46 @@ class ResCompany(models.Model):
             else:
                 to_create.append(vals)
 
-        newly_created_codes = set()
         if to_create:
             created = Account.create(to_create)
             for account in created:
                 account_by_code[account.code] = account.id
-                newly_created_codes.add(account.code)
 
-        # Opening balances are only ever set the FIRST time an account is
-        # created, never re-applied to an account that already existed.
-        # Odoo's own opening-move mechanism folds the "UNAPPROPRIATED
-        # PROFIT/(LOSS)" (equity_unaffected) account into an automatic
-        # balancing line on every write - re-setting opening_debit/credit
-        # on accounts that already have a line produces duplicate/deleted
-        # lines and an "entry is not balanced" error on a second run.
+        # Safe to (re)apply opening balances to every account here: this
+        # method only ever runs right after _combine001_reset_accounting
+        # has wiped all pre-existing journal items for the company, so
+        # there is no existing opening-move line for Odoo's own
+        # auto-balancing mechanism to collide with.
         by_code = {row['code']: row for row in rows}
-        for code in newly_created_codes:
+        for code, account_id in account_by_code.items():
             row = by_code[code]
             debit = float(row['opening_debit'] or 0)
             credit = float(row['opening_credit'] or 0)
             if debit or credit:
-                account = Account.browse(account_by_code[code])
+                account = Account.browse(account_id)
                 account.opening_debit = debit
                 account.opening_credit = credit
 
         return account_by_code
+
+    def _combine001_post_opening_move(self, company):
+        """Post the freshly-rebuilt opening balance so it actually shows
+        up in the Trial Balance / General Ledger / Balance Sheet, which
+        default to posted entries only.
+
+        Setting opening_debit/opening_credit on an account.account (in
+        _combine001_import_accounts) doesn't build the opening move
+        synchronously - it queues a precommit callback that only runs at
+        cr.commit() time. Calling env.cr.flush() here forces that
+        callback to run immediately (without actually committing the
+        transaction), so company.account_opening_move_id is populated by
+        the time this method reads it - otherwise it's still empty and
+        this silently does nothing."""
+        self.env.cr.flush()
+        move = company.account_opening_move_id
+        if move and move.state == 'draft' and move.line_ids:
+            move.action_post()
+            _logger.info("Combine001: opening balance journal entry posted (%s lines).", len(move.line_ids))
 
     def _combine001_archive_stale_accounts(self, company, imported_codes):
         """Archive accounts that exist for this company but are NOT part
