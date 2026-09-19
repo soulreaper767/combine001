@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Deliberately NOT noupdate: an XML <function> call only runs on
+         module upgrade (not just fresh install) when its containing file
+         is not marked noupdate="1" (see odoo/tools/convert.py
+         _tag_function). This is what makes the Chart of Accounts /
+         opening balance / Customers & Vendors import re-apply every time
+         this module is upgraded, not just the first time it's installed
+         (post_init_hook only ever fires on install). -->
+    <function model="res.company" name="_combine001_run_import"/>
+</odoo>

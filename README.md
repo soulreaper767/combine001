@@ -20,7 +20,7 @@ Odoo 19 custom app implementing the "Odoo ERP Enhancements v1.0" BRD
 | 5.5 | Sales Tax Template | native Odoo `account.tax` — no custom code needed |
 | 5.6 | Additional charges (freight/transport/handling/service) | `models/charge_type.py`, `wizard/add_charge_wizard.py` |
 | 5.7 | Commission Agent + automatic commission calc on invoice | `models/commission_agent.py`, `models/commission_line.py`, `models/account_move.py` |
-| 5.8 | Chart of Accounts restructuring + real opening trial balance import | `hooks.py` (`post_init_hook`), data in `data/import/` |
+| 5.8 | Chart of Accounts restructuring + real opening trial balance import | `models/res_company.py`, data in `data/import/` |
 | 7 | Separate Tax Ledger + controlled manual adjustment | `views/tax_ledger_views.xml`, `models/tax_adjustment.py` |
 | 10 | Security groups (Tax Officer, Auditor) + audit trail via chatter | `security/combine001_security.xml` |
 | 3.1 | One demo user per defined role, pre-assigned to the right groups | `data/combine001_users_data.xml` |
@@ -59,48 +59,65 @@ showed `implied_ids` does not propagate to a user created via a plain
 `(6, 0, [...])` write on `group_ids` in XML data — see the comment in
 `data/combine001_users_data.xml`.
 
-## Chart of Accounts, opening trial balance, Customers & Vendors import
+## Chart of Accounts, opening trial balance, Customers & Vendors, bank accounts
 
-`hooks.py`'s `post_init_hook` runs automatically once, right after install,
-and replaces the company's Chart of Accounts and opening trial balance with
-the client's actual data — extracted from
-`D:\Others\Combine Spinning\coa and opening trial.xlsx` (Chart of Accounts
-sheet, a Delta ERP trial balance with levels, as on 15-Sep-2026) and
-`D:\Others\Combine Spinning\Customers and Vendors.xlsx`. The cleaned data
-it imports from is bundled at `data/import/*.csv` (generated once from
-those two workbooks, not re-read from them at install time).
+`models/res_company.py`'s `_combine001_run_import()` replaces the company's
+Chart of Accounts and opening trial balance with the client's actual data
+— extracted from `D:\Others\Combine Spinning\coa and opening trial.xlsx`
+(Chart of Accounts sheet, a Delta ERP trial balance with levels, as on
+15-Sep-2026) and `D:\Others\Combine Spinning\Customers and Vendors.xlsx`.
+The cleaned data it imports from is bundled at `data/import/*.csv`
+(generated once from those two workbooks, not re-read from them at
+install/upgrade time).
+
+**Runs on install AND on every module upgrade** — wired via a
+non-`noupdate` `<function>` tag (`data/combine001_import_run.xml`), not
+`post_init_hook`: `post_init_hook` only ever fires on a fresh install,
+never on `-u`/Upgrade, which is why the data didn't show up after the
+first deploy on a database where the module was already installed before
+this feature existed. The whole thing is written to be safe to re-run
+on every future upgrade too:
+
+- Accounts, account groups, bank journals and Customers/Vendors are all
+  **found-or-created by their natural key** (code / name) instead of
+  blindly recreated, so re-running never produces duplicates.
+- **Opening balances are only ever set the first time an account is
+  created** — never re-applied to an account that already exists. (Odoo's
+  own opening-move mechanism folds a rounding-adjustment line into the
+  same "Undistributed Profits" account; re-setting an existing account's
+  opening balance on a second run corrupted that line and threw "the
+  entry is not balanced" — caught by testing 3 consecutive upgrades.)
+- If the opening move has already been **posted** (i.e. the business has
+  gone live on this data), a later upgrade **skips re-touching the Chart
+  of Accounts and opening balances entirely** rather than force-unlocking
+  and rewriting live financial data — logged as a warning. Customers,
+  Vendors and bank journals still refresh normally either way.
 
 **What it does, step by step:**
 
-1. Cancels Odoo's own fallback "auto-install a generic Chart of Accounts"
+1. Sets the company currency to **PKR** (activating the currency record
+   if needed) — skipped with a warning if the company already has posted
+   journal items, since Odoo forbids changing currency at that point.
+2. Cancels Odoo's own fallback "auto-install a generic Chart of Accounts"
    behaviour, which would otherwise create a *second*, competing default
    CoA and journals for any company with no localization chosen (see the
-   big comment on `_cancel_generic_coa_auto_install` in `hooks.py` — this
-   was the one genuinely surprising Odoo 19 internal to work around).
-2. If the company already has a **posted** opening move, unlocks it to
-   draft first (Odoo refuses to touch a posted opening move otherwise).
-3. Deletes the company's existing `account.group` records and archives
-   (not deletes — other configs may reference them) its existing
-   `account.account` records.
+   big comment on `_combine001_cancel_generic_coa_auto_install` — this was
+   the one genuinely surprising Odoo 19 internal to work around).
+3. Skips straight to step 7 if the opening move is already posted (see
+   above); otherwise:
 4. Creates a `Miscellaneous Operations` (general), `Customer Invoices`
    (sale) and `Vendor Bills` (purchase) journal if the company doesn't
    already have one of each — needed for day-to-day invoicing and for the
-   opening move itself. **Deliberately does NOT create a Bank/Cash
-   journal** — the source data has ~30 real named bank accounts under
-   "CASH AND BANK BALANCE" and there's no way to know from it which one is
-   the client's actual live operating account; guessing wrong would
-   misdirect real payments. A System Administrator/Accountant sets this up
-   manually (Accounting > Configuration > Journals), pointing it at the
-   correct already-imported account.
+   opening move itself.
 5. Imports **126 account groups** (Level 1–3 of the source CoA) and
    **1,007 accounts** (Level 4 posting accounts), using Odoo's native
-   `opening_debit`/`opening_credit` fields — the same mechanism Odoo's own
-   CSV-import UI uses — so the opening move is built by Odoo itself, not
-   hand-constructed. **It is left in `draft` state** on purpose: real
-   opening balances (a ~21.4 billion Rs trial balance) should be reviewed
-   by a Finance Manager/Accountant before posting, not auto-posted blind.
-   Any residual rounding is auto-balanced by Odoo against the equity
-   "Undistributed Profits" account, per Odoo's own mechanism.
+   `opening_debit`/`opening_credit` fields on newly-created accounts only
+   — the same mechanism Odoo's own CSV-import UI uses, so the opening move
+   is built by Odoo itself, not hand-constructed. **It is left in `draft`
+   state** on purpose: real opening balances (a ~21.4 billion Rs trial
+   balance) should be reviewed by a Finance Manager/Accountant before
+   posting, not auto-posted blind. Any residual rounding is auto-balanced
+   by Odoo against the equity "Undistributed Profits" account.
 6. **Debtors/Creditors control accounts (BRD COA-001/002/003):** instead
    of importing the source's 331 individual vendor-named and 33
    individual customer-named GL leaf accounts, this creates one **control
@@ -111,8 +128,18 @@ those two workbooks, not re-read from them at install time).
    the two differ by Rs 1 out of ~21.4 billion, pure floating-point
    rounding in the source spreadsheet). Customer/vendor-level detail is
    tracked the Odoo-native way instead: via `partner_id` on the journal
-   item (Partner Ledger), not a separate GL account per party.
-7. Imports the **341 customers** and **346 vendors** from the Customers
+   item (Partner Ledger), not a separate GL account per party. Any
+   pre-existing account whose code is not part of this import gets
+   archived (not deleted — other configs may reference it).
+7. **Bank/cash accounts and journals:** every one of the ~30 real, named
+   accounts under "CASH AND BANK BALANCE" is imported as its own GL
+   account (like any other posting account, step 5) *and* gets its own
+   `account.journal` (type `bank` or `cash`, per whether its code is under
+   `3.14.01.*` "Cash in Hand"), linked via `default_account_id`. The one
+   with the single largest opening debit balance is marked as the default
+   (lowest `sequence`, so it's the one every journal/payment picker shows
+   first) — currently "MEEZAN BANK 0204-0100906298".
+8. Imports the **341 customers** and **346 vendors** from the Customers
    and Vendors workbook as `res.partner` Contacts (`customer_rank`/
    `supplier_rank` set), each with `property_account_receivable_id` /
    `property_account_payable_id` pointing at the correct control account
@@ -123,7 +150,9 @@ those two workbooks, not re-read from them at install time).
    original group has no named control account (most customers — see
    below) falls back to one general control account each: `3.09.01`
    "TRADE DEBTORS - LOCAL SALES (GENERAL)" for customers, the existing
-   `2.07.09` "CREDITORS - OTHERS" for vendors.
+   `2.07.09` "CREDITORS - OTHERS" for vendors. Runs every time regardless
+   of whether the opening move is posted, so party master data always
+   stays current.
 
 **Note on data completeness:** the source CoA workbook explicitly excludes
 "dormant" accounts (both Debit and Credit closing balance in {0, 1, 2} Rs)
@@ -140,11 +169,12 @@ collapsed for them.
 **Not done automatically, by design** (would require guessing at real
 business specifics this data doesn't contain): rewiring the *other*
 company-level default-account settings (cash-difference accounts,
-early-payment-discount accounts, journal control accounts, product
-category default income/expense accounts, tax repartition line accounts,
-fiscal positions) that a prior chart-of-accounts template may have set to
-now-archived accounts. Only the accounts actually used by this hook are
-touched. Review Accounting > Configuration before go-live.
+early-payment-discount accounts, product category default income/expense
+accounts, tax repartition line accounts, fiscal positions) that a prior
+chart-of-accounts template may have set to now-archived accounts, and
+deciding whether the auto-picked default bank journal (largest opening
+balance) is actually the one that should be used going forward. Review
+Accounting > Configuration before go-live.
 
 ## Assumptions made for the BRD's open items (Section 12)
 
@@ -172,12 +202,25 @@ change these in code once the client confirms:
    part of the still-open Chart of Accounts restructuring (COA-003); the
    Accountant posts the entry manually referencing the approved record.
 
-## Install
+## Install / Upgrade
 
 Addon lives under `~/odoo/custom/` (symlinked as `combine001` ->
 `combine001_odoo/combine001`) on the WSL Odoo dev instance, addons path
-already includes `~/odoo/custom`. Install/update via:
+already includes `~/odoo/custom`. Fresh install:
 
 ```
 odoo-bin -c <conf> -d <db> -i combine001 --stop-after-init
 ```
+
+Upgrade an already-installed database to pick up code/data changes
+(including a re-run of the CoA/opening-balance/Customers&Vendors import,
+per the safety rules described above):
+
+```
+odoo-bin -c <conf> -d <db> -u combine001 --stop-after-init
+```
+
+On Odoo.sh or any web-based install, the equivalent is: push to the
+tracked branch, then in that database's backend go to **Apps**, clear the
+"Apps" filter, search **Combine001**, and click **Upgrade** (not just
+confirm it's installed — Upgrade is what re-runs the import).

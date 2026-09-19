@@ -23,10 +23,11 @@ Implements the Business Requirements Document "Odoo ERP Enhancements v1.0"
 * Role-based security groups (Tax Officer, Auditor) aligned to the BRD's
   RACI / access matrix, plus one demo user per BRD role (Section 3.1)
   already assigned to the correct groups
-* On install: replaces the company's Chart of Accounts and opening trial
-  balance with the client's actual data, and imports its Customers and
-  Vendors as Contacts (see hooks.py / README for what this does and does
-  not touch)
+* On install AND on every upgrade: replaces the company's Chart of
+  Accounts and opening trial balance with the client's actual data
+  (currency PKR), imports its Customers and Vendors as Contacts, and
+  creates one bank/cash journal per real bank account (see
+  models/res_company.py / README for what this does and does not touch)
 
 Several points are explicitly left open in the BRD for client sign-off
 (Section 12, "Open Items for Functional Design"). This module ships a
@@ -65,9 +66,9 @@ README for the assumptions made and how to change them:
         'views/tax_ledger_views.xml',
         'views/audit_views.xml',
         'views/combine001_menus.xml',
+        'data/combine001_import_run.xml',
     ],
     'installable': True,
     'application': True,
     'auto_install': False,
-    'post_init_hook': 'post_init_hook',
 }
