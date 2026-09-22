@@ -24,6 +24,30 @@ Odoo 19 custom app implementing the "Odoo ERP Enhancements v1.0" BRD
 | 7 | Separate Tax Ledger + controlled manual adjustment | `views/tax_ledger_views.xml`, `models/tax_adjustment.py` |
 | 10 | Security groups (Tax Officer, Auditor) + audit trail via chatter | `security/combine001_security.xml` |
 | 3.1 | One demo user per defined role, pre-assigned to the right groups | `data/combine001_users_data.xml` |
+| — | "Quotation" relabeled to "Sales Contract" across the Sales app | `views/sale_quotation_to_contract_views.xml` |
+
+## "Quotation" → "Sales Contract"
+
+Combine Spinning's trade calls these documents "contracts", not
+"quotations" — `views/sale_quotation_to_contract_views.xml` relabels the
+term across the core Sales app: the main menu (*Sales > Orders > Sales
+Contracts*), list/search view titles, search filters ("My Sales
+Contracts"), the "Set to Sales Contract" button, the "Mark Sales Contract
+as Sent" action, the CRM Team "New Sales Contract" button, the generated
+PDF filename (`Sales Contract - S00001.pdf` instead of
+`Quotation - S00001.pdf`), and the PDF report body itself (title "Sales
+Contract #", "Contract Date" label). **Purely cosmetic** — the underlying
+`sale.order` model, its fields, states (`draft`/`sent`/`sale`), and the
+whole quotation→order workflow are completely unchanged; only the text a
+user sees is different.
+
+Not renamed: the Print-menu action's own technical label (still shows
+"PDF Quote" — that's set by the Enterprise `sale_pdf_quote_builder`
+module, which happens to load after combine001 and silently wins that one
+field; not worth forcing a fight over a rarely-seen label via a fake
+dependency), and anything outside the core Sales app (Subscriptions, POS,
+Website/eCommerce, email template wording) — out of scope per the chosen
+rename scope.
 
 ## Roles & demo users (BRD Section 3.1)
 

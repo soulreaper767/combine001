@@ -28,6 +28,10 @@ Implements the Business Requirements Document "Odoo ERP Enhancements v1.0"
   (currency PKR), imports its Customers and Vendors as Contacts, and
   creates one bank/cash journal per real bank account (see
   models/res_company.py / README for what this does and does not touch)
+* Relabels "Quotation" to "Sales Contract" across the core Sales app
+  (menus, buttons, filters, PDF report/print) to match the textile-trade
+  terminology Combine Spinning actually uses — cosmetic only, the
+  underlying sale.order model/workflow is unchanged
 
 Several points are explicitly left open in the BRD for client sign-off
 (Section 12, "Open Items for Functional Design"). This module ships a
@@ -62,6 +66,7 @@ README for the assumptions made and how to change them:
         'views/commission_line_views.xml',
         'wizard/add_charge_wizard_views.xml',
         'views/sale_order_views.xml',
+        'views/sale_quotation_to_contract_views.xml',
         'views/tax_adjustment_views.xml',
         'views/tax_ledger_views.xml',
         'views/audit_views.xml',
