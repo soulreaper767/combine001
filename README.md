@@ -25,10 +25,37 @@ Odoo 19 custom app implementing the "Odoo ERP Enhancements v1.0" BRD
 | 10 | Security groups (Tax Officer, Auditor) + audit trail via chatter | `security/combine001_security.xml` |
 | 3.1 | One demo user per defined role, pre-assigned to the right groups | `data/combine001_users_data.xml` |
 
-## Demo users (BRD Section 3.1)
+## Roles & demo users (BRD Section 3.1)
 
-One user per role is created on install, already in the group(s) from the
-BRD's Section 3.2 access matrix:
+Every BRD role gets its own **Combine001-branded security group**
+(`security/combine001_security.xml`), organized into 6 privileges (rows) —
+Sales, Warehouse, Accounting, Tax, Audit, Administration — all under one
+"Combine001" category, so the whole access matrix is manageable from a
+single block on *Settings > Users & Companies > Users > (user) > Access
+Rights*, instead of being scattered across native Sales/Inventory/
+Accounting/Settings sections. Being separate privileges (rows) means a
+user can hold a selection from **each** at once (e.g. Sales Manager +
+Finance Manager simultaneously) — they aren't mutually exclusive.
+
+Each of these wraps (via `implied_ids`) the real native Odoo group(s) that
+grant the actual functional access, so assigning the Combine001-branded
+role is enough on its own for a real (UI-assigned) user — no need to also
+manually tick the underlying native group:
+
+| Privilege | Role | Wraps |
+|---|---|---|
+| Sales | Sales User | `sales_team.group_sale_salesman` |
+| Sales | Sales Manager | + `sales_team.group_sale_manager` |
+| Warehouse | Warehouse User | `stock.group_stock_user` |
+| Accounting | Accountant | `account.group_account_user` |
+| Accounting | Finance Manager | + `account.group_account_manager` |
+| Tax | Tax Officer | `account.group_account_user` |
+| Audit | Auditor | — (Combine001-only read access, see below) |
+| Administration | **Module Admin** *(new)* | full CRUD on Combine001's own models (quantity limits, charge types, commission agents, tax ledger adjustments) — no access to the rest of Odoo |
+| Administration | System Administrator | Module Admin + `base.group_system` |
+
+One demo user per role is created on install, already in the right
+group(s):
 
 | Role | Login |
 |---|---|
@@ -38,6 +65,7 @@ BRD's Section 3.2 access matrix:
 | Accountant | `accountant@combine001.local` |
 | Finance Manager / Controller | `finance.manager@combine001.local` |
 | Tax Officer | `tax.officer@combine001.local` |
+| Module Admin | `module.admin@combine001.local` |
 | System Administrator | `system.admin@combine001.local` |
 | Auditor | `auditor@combine001.local` (read-only on Sales Orders, Invoices,
   Payments, Deliveries and every Combine001 model — see `views/audit_views.xml`) |
@@ -51,13 +79,14 @@ outgoing mail is configured. They're meant as a starting point for
 setup/UAT — rename, reassign, or deactivate them and create real named
 accounts once the client's staff list is confirmed.
 
-Each user's `group_ids` lists the full closure of groups for that role
-explicitly (e.g. Sales Manager includes the Salesman group, Finance
-Manager includes the Accountant group) rather than relying on a group's
-`implied_ids` to cascade automatically: testing on this Odoo 19 build
-showed `implied_ids` does not propagate to a user created via a plain
-`(6, 0, [...])` write on `group_ids` in XML data — see the comment in
-`data/combine001_users_data.xml`.
+Each demo user's `group_ids` still lists the full closure of groups
+explicitly (both the Combine001-branded role group *and* the native
+group(s) it wraps) rather than relying on `implied_ids` to cascade
+automatically: testing on this Odoo 19 build showed `implied_ids` does
+not propagate to a user created via a plain `(6, 0, [...])` write on
+`group_ids` in XML data (it works fine for a real user assigned a role
+through the Users UI — only XML-created users need this workaround) —
+see the comment in `data/combine001_users_data.xml`.
 
 ## Chart of Accounts, opening trial balance, Customers & Vendors, bank accounts
 

@@ -4,7 +4,7 @@
 
     <menuitem id="menu_combine001_configuration" name="Configuration"
               parent="menu_combine001_root" sequence="90"
-              groups="base.group_system,account.group_account_manager"/>
+              groups="base.group_system,account.group_account_manager,combine001.group_combine001_module_admin"/>
     <menuitem id="menu_combine001_customer_item_limit" name="Customer Item Quantity Limits"
               parent="menu_combine001_configuration" action="action_customer_item_limit" sequence="10"/>
     <menuitem id="menu_combine001_charge_type" name="Additional Charge Types"
@@ -20,7 +20,7 @@
 
     <menuitem id="menu_combine001_taxation" name="Taxation"
               parent="menu_combine001_root" sequence="30"
-              groups="combine001.group_tax_officer,account.group_account_manager,combine001.group_auditor"/>
+              groups="combine001.group_tax_officer,account.group_account_manager,combine001.group_auditor,combine001.group_combine001_module_admin"/>
     <menuitem id="menu_combine001_tax_ledger" name="Tax General Ledger"
               parent="menu_combine001_taxation" action="action_tax_ledger" sequence="10"/>
     <menuitem id="menu_combine001_tax_adjustment" name="Manual Tax Ledger Adjustments"
