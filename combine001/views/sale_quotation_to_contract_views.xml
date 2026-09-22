@@ -14,6 +14,15 @@
     <record id="sale.action_quotations" model="ir.actions.act_window">
         <field name="name">Sales Contracts</field>
     </record>
+    <!-- The sidebar menuitem itself has its OWN stored `name` field,
+         copied from the action's name only once, when the menu record
+         was first created (long before this module ever ran) - it does
+         not live-follow the action's name afterward, so the action
+         rename above alone leaves the sidebar entry still reading
+         "Quotations". Must be set explicitly here too. -->
+    <record id="sale.menu_sale_quotations" model="ir.ui.menu">
+        <field name="name">Sales Contracts</field>
+    </record>
 
     <!-- List view title shown when opening the Quotations action -->
     <record id="view_quotation_tree_combine001" model="ir.ui.view">
@@ -65,6 +74,26 @@
     <!-- CRM Team "New Quotation" smart button -->
     <record id="sale.action_quotation_form" model="ir.actions.act_window">
         <field name="name">New Sales Contract</field>
+    </record>
+
+    <!-- Sales > Configuration > Quotation Templates (action + menuitem
+         both have their own hardcoded `name`, same as menu_sale_quotations
+         above - both need setting explicitly, not just one or the other -->
+    <record id="sale_management.sale_order_template_action" model="ir.actions.act_window">
+        <field name="name">Sales Contract Templates</field>
+    </record>
+    <record id="sale_management.sale_order_template_menu" model="ir.ui.menu">
+        <field name="name">Sales Contract Templates</field>
+    </record>
+    <record id="sale_order_template_view_tree_combine001" model="ir.ui.view">
+        <field name="name">sale.order.template.list.combine001</field>
+        <field name="model">sale.order.template</field>
+        <field name="inherit_id" ref="sale_management.sale_order_template_view_tree"/>
+        <field name="arch" type="xml">
+            <list position="attributes">
+                <attribute name="string">Sales Contract Template</attribute>
+            </list>
+        </field>
     </record>
 
     <!-- Generated PDF filename. NOT overriding this action's own `name`
