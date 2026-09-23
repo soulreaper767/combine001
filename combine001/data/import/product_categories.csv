@@ -1,0 +1,19 @@
+name,parent_name,income_account_code,expense_account_code,stock_account_code
+Mix B Grade,Finished Goods,4.01.01.0001,5.18.02.0002,3.08.01.0001
+Acrylic Yarn,Finished Goods,4.01.01.0001,5.18.02.0002,3.08.01.0001
+Cotton Yarn / CMB / Wool,Finished Goods,4.01.01.0001,5.18.02.0002,3.08.01.0001
+Cotton / Linen / Tencel Yarn / Trilobal,Finished Goods,4.01.01.0001,5.18.02.0002,3.08.01.0001
+Mix Material Yarn,Finished Goods,4.01.01.0001,5.18.02.0002,3.08.01.0001
+Viscose Yarn,Finished Goods,4.01.01.0001,5.18.02.0002,3.08.01.0001
+Polyester Yarn,Finished Goods,4.01.01.0001,5.18.02.0002,3.08.01.0001
+Polyester / Cotton Yarn,Finished Goods,4.01.01.0001,5.18.02.0002,3.08.01.0001
+Polyester / Viscose Yarn,Finished Goods,4.01.01.0001,5.18.02.0002,3.08.01.0001
+Mix Material,Finished Goods,4.01.01.0001,5.18.02.0002,3.08.01.0001
+Polyester / Cotton / Viscose Yarn / CMD,Finished Goods,4.01.01.0001,5.18.02.0002,3.08.01.0001
+"Socks, Cloth & Towel (Export Program)",Finished Goods,4.01.01.0008,5.18.03.0001,3.08.01.0002
+Mixed Materials,Raw Material,4.01.01.0002,5.01.01.0015,3.08.03.0015
+Cotton,Raw Material,4.01.01.0002,5.01.01.0002,3.08.03.0001
+Acrylic Fiber,Raw Material,4.01.01.0002,5.01.01.0005,3.08.03.0004
+Lycra & Creora Fiber,Raw Material,4.01.01.0002,5.01.01.0099,3.08.03.0016
+Viscose Fiber,Raw Material,4.01.01.0002,5.01.01.0004,3.08.03.0003
+Polyester Fiber,Raw Material,4.01.01.0002,5.01.01.0003,3.08.03.0002

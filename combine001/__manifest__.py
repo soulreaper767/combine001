@@ -32,6 +32,13 @@ Implements the Business Requirements Document "Odoo ERP Enhancements v1.0"
   (menus, buttons, filters, PDF report/print) to match the textile-trade
   terminology Combine Spinning actually uses — cosmetic only, the
   underlying sale.order model/workflow is unchanged
+* Imports the real Finished Goods / Raw Material product catalog (284
+  products, 18 categories) mapped onto the client's own Chart of
+  Accounts; configures GST 18%/22% Sale + Purchase taxes (18% default);
+  and automatically records "GST Saved" (Dr Current Asset / Cr Equity,
+  entirely outside the P&L) whenever an invoice or bill posts with no
+  GST charged, computed from the rate on each product's master — see
+  models/res_company.py and models/account_move.py / README
 
 Several points are explicitly left open in the BRD for client sign-off
 (Section 12, "Open Items for Functional Design"). This module ships a
@@ -69,6 +76,7 @@ README for the assumptions made and how to change them:
         'views/sale_quotation_to_contract_views.xml',
         'views/tax_adjustment_views.xml',
         'views/tax_ledger_views.xml',
+        'views/gst_saving_views.xml',
         'views/audit_views.xml',
         'views/combine001_menus.xml',
         'data/combine001_import_run.xml',

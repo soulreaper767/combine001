@@ -25,6 +25,115 @@ Odoo 19 custom app implementing the "Odoo ERP Enhancements v1.0" BRD
 | 10 | Security groups (Tax Officer, Auditor) + audit trail via chatter | `security/combine001_security.xml` |
 | 3.1 | One demo user per defined role, pre-assigned to the right groups | `data/combine001_users_data.xml` |
 | — | "Quotation" relabeled to "Sales Contract" across the Sales app | `views/sale_quotation_to_contract_views.xml` |
+| — | Finished Goods / Raw Material product catalog import | `models/res_company.py`, data in `data/import/` |
+| — | GST 18%/22% Sale+Purchase taxes, defaulting to 18% | `models/res_company.py`, `models/account_tax.py` |
+| — | "GST Saved" — notional GST tracking when no GST is charged | `models/gst_saving.py`, `models/account_move.py`, `views/gst_saving_views.xml` |
+
+## Products, Categories & Chart of Accounts mapping
+
+`models/res_company.py`'s `_combine001_run_import()` (the same method that
+imports the Chart of Accounts — see below) also imports the product
+catalog from `D:\Others\Combine Spinning\Finished Goods and RM.xlsx`. Runs
+every time regardless of whether the opening balance is posted (like
+Customers/Vendors — product master data isn't part of the historical
+trial balance, so there's no reason to freeze it at go-live).
+
+**The source file is a daily stock/production report, not a product
+list or price list** — two sheets ("Finished Goods", "Raw Material"),
+each a snapshot of opening/production/dispatch/closing quantities by
+material family, re-grouped inconsistently across the sheet (the same
+category name reappears several times, e.g. "MIX MATERIAL YARN" 3
+times). `data/import/product_categories.csv` and `products.csv` are the
+*cleaned* output of studying and parsing that report (see the category
+mapping table below) — not re-parsed from the workbook at install time.
+
+**What got created:**
+- **18 product categories** in 2 families — *Finished Goods* (11
+  yarn-material categories + Socks/Cloth/Towel) and *Raw Material* (6
+  fiber-type categories) — each with `property_valuation = 'periodic'`
+  (matches how this company's existing Chart of Accounts already works:
+  "Raw Material Consumed" as a direct expense, "Stock in Trade" as a
+  plain asset, no interim/GRNI accounts anywhere — this is a periodic/
+  manual-valuation books, not Odoo's automated perpetual model, so
+  `periodic` was the correct choice, not `real_time`).
+- **284 products** (172 Finished Goods + 117 Raw Material minus 5 exact
+  name collisions across categories in the source report — kept the
+  first occurrence of each, see the comment in the CSV generation), all
+  `type='consu', is_storable=True`, UoM **KG** (the only unit that's
+  actually consistent across the source data — "Bags"/"Cones"/"Bales"
+  each convert to a different KG weight per product, so KG was the only
+  safe uniform choice).
+- Every category's Income/Expense(COGS)/Stock accounts are mapped onto
+  the **already-imported real Chart of Accounts** wherever a specific
+  match existed (e.g. Raw Material > Cotton → `5.01.01.0002 RAW MATERIAL
+  CONSUMED - COTTON` / `3.08.03.0001 RAW MATERIAL STOCK COTTON`, Raw
+  Material sales → the existing `4.01.01.0002 LOCAL SALES - RAW
+  MATERIAL`, all Yarn categories → the existing `4.01.01.0001 LOCAL
+  SALES - YARN`). Where no matching account existed yet, a small,
+  clearly-new one was added in an unused code slot next to its natural
+  siblings (Finished Goods had no Stock/COGS accounts at all yet, Socks
+  had no Income account, Lycra had no Consumption account despite
+  already having a Stock account) — see `_STRUCTURAL_ACCOUNTS` in
+  `models/res_company.py` for the full list and reasoning, and the GST
+  section below for the other 2 new accounts.
+- **No prices.** The source report has zero pricing data (it's a
+  quantity report) — products import at price 0, for Sales/Finance to
+  fill in.
+- **No opening stock quantities.** The report's quantity columns are a
+  point-in-time snapshot mixed with monthly production/dispatch deltas,
+  not something safe to import as "current stock" without risking a
+  materially wrong inventory count — only product *master data* is
+  created here. Loading real opening stock quantities (with a costing
+  method and a proper opening inventory adjustment) is a separate,
+  follow-on piece of work if wanted.
+
+## GST 18%/22% and "GST Saved"
+
+Four `account.tax` records (`models/res_company.py`
+`_combine001_ensure_gst_taxes`, tagged `x_combine001_gst=True` via
+`models/account_tax.py` so the GST-Saved logic below can recognize
+them): **GST 18% (Sale)**, **GST 22% (Sale)**, **GST 18% (Purchase)**,
+**GST 22% (Purchase)** — posting to the Chart of Accounts' existing
+`3.11.05.0002 SALES TAX PAYABLE - OUTPUT` / `3.11.05.0001 SALES TAX
+REFUNDABLE - INPUT` accounts respectively. **18% is the default** for
+both directions (company + every imported product) since the source
+data doesn't say which specific items need 22% — flip those manually
+once known (product's Sales/Purchase tab, or Accounting > Taxes).
+
+**"GST Saved":** whenever a customer invoice or vendor bill (or credit
+note/refund) is **posted with no GST charged at all**,
+`models/account_move.py`'s `_combine001_create_gst_saving_line` computes
+what GST *would* have applied — for each line, using whichever of the 4
+GST taxes is configured on that line's product master (`taxes_id` for
+sales, `supplier_taxes_id` for purchases; a line whose product has no
+GST tax configured contributes nothing, there's no rate to fall back on)
+— and records the total as a same-amount entry:
+
+```
+Dr  3.13.01.0001  GST Saving            (Current Asset)
+Cr  1.09.01.0001  GST Saving Reserve    (Equity, sorts after Retained
+                                         Earnings / Profit Distribution -
+                                         i.e. below Profit/(Loss) for the
+                                         period, as asked)
+```
+
+posted immediately (own journal entry, Miscellaneous Operations
+journal), linked back to the source invoice/bill via a
+`combine001.gst.saving.line` record (*Combine001 > Taxation > GST
+Saved* — list + pivot, groupable by Sale/Purchase/Customer/Month, with a
+running total). This is **deliberately kept out of the real P&L** (it
+never touches an income/expense account) — it's a pure memo/management
+metric of the value of off-GST-books trade, not a real tax liability or
+saving; both accounts sit in their own dedicated groups (`3.13`, `1.09`)
+so they're already easy to spot as distinct lines on the standard
+Balance Sheet. **On seeing the Balance Sheet with vs. without the GST
+Saving impact:** rather than hacking a checkbox into Odoo's Enterprise
+financial-report engine (a real, version-fragile undertaking for a
+niche need), the *GST Saved* report above already gives a direct running
+total, and because both accounts are isolated in their own groups, the
+standard Balance Sheet's line-folding lets you collapse/expand them
+to see the delta directly — the simpler, safer answer to "give me an
+easy way to see the impact."
 
 ## "Quotation" → "Sales Contract"
 
