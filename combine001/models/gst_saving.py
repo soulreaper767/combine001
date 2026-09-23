@@ -24,3 +24,23 @@ class GstSavingLine(models.Model):
         'UNIQUE(move_id)',
         'A GST saving entry already exists for this invoice/bill.',
     )
+
+    def action_open_move(self):
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'res_model': 'account.move',
+            'res_id': self.move_id.id,
+            'view_mode': 'form',
+            'target': 'current',
+        }
+
+    def action_open_journal_entry(self):
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'res_model': 'account.move',
+            'res_id': self.journal_entry_id.id,
+            'view_mode': 'form',
+            'target': 'current',
+        }

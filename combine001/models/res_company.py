@@ -1,6 +1,7 @@
 import csv
 import logging
 import os
+import re
 from datetime import date
 
 from odoo import api, models
@@ -217,32 +218,55 @@ class ResCompany(models.Model):
     # -- currency -------------------------------------------------------
 
     def _combine001_set_currency(self, company):
-        """The trial balance is entirely in PKR. Also sets the company's
-        country to Pakistan if unset - needed for GST/tax records (Odoo
-        requires account.tax.country_id, normally derived from the
-        company's own country) and generally correct for a Pakistani
-        entity regardless."""
+        """Everything is PKR. Also sets the company's country to Pakistan
+        if unset - needed for GST/tax records (Odoo requires
+        account.tax.country_id, normally derived from the company's own
+        country) and generally correct for a Pakistani entity regardless."""
         if not company.country_id:
             pk = self.env.ref('base.pk', raise_if_not_found=False)
             if pk:
                 company.country_id = pk.id
 
-        if company.currency_id.name == 'PKR':
-            return
         pkr = self.env['res.currency'].with_context(active_test=False).search([('name', '=', 'PKR')], limit=1)
         if not pkr:
             _logger.warning("Combine001: no PKR currency record found on this database - skipping currency change.")
             return
         if not pkr.active:
             pkr.active = True
-        try:
-            company.currency_id = pkr.id
-            _logger.info("Combine001: company currency set to PKR.")
-        except UserError:
-            _logger.warning(
-                "Combine001: could not change company currency to PKR - accounting entries already "
-                "exist (Odoo forbids changing currency once journal items are posted)."
-            )
+
+        if company.currency_id != pkr:
+            try:
+                company.currency_id = pkr.id
+                _logger.info("Combine001: company currency set to PKR.")
+            except UserError:
+                _logger.warning(
+                    "Combine001: could not change company currency to PKR - accounting entries already "
+                    "exist (Odoo forbids changing currency once journal items are posted)."
+                )
+
+        # Company currency alone isn't "the whole system": a few other
+        # models store their OWN currency independently and do not follow
+        # the company's currency automatically. Force those too - a
+        # default Pricelist in particular is auto-created by
+        # product/sale_management using whatever the company's currency
+        # happened to be at THAT moment, which can be stale (e.g. still
+        # USD from before this module ever ran).
+        stale_pricelists = self.env['product.pricelist'].search([
+            ('company_id', 'in', (False, company.id)), ('currency_id', '!=', pkr.id),
+        ])
+        for pricelist in stale_pricelists:
+            pricelist.currency_id = pkr.id
+            if 'USD' in pricelist.name or 'EUR' in pricelist.name:
+                pricelist.name = re.sub(r'\b(USD|EUR)\b', 'PKR', pricelist.name)
+        if stale_pricelists:
+            _logger.info("Combine001: %s pricelist(s) switched to PKR.", len(stale_pricelists))
+
+        stale_journals = self.env['account.journal'].search([
+            ('company_id', '=', company.id), ('currency_id', '!=', False), ('currency_id', '!=', pkr.id),
+        ])
+        if stale_journals:
+            stale_journals.currency_id = False  # falls back to company currency (PKR)
+            _logger.info("Combine001: %s journal(s) with a non-PKR currency override cleared.", len(stale_journals))
 
     # -- disable Odoo's own fallback CoA auto-install --------------------
 

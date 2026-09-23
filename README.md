@@ -111,29 +111,47 @@ GST tax configured contributes nothing, there's no rate to fall back on)
 
 ```
 Dr  3.13.01.0001  GST Saving            (Current Asset)
-Cr  1.09.01.0001  GST Saving Reserve    (Equity, sorts after Retained
-                                         Earnings / Profit Distribution -
-                                         i.e. below Profit/(Loss) for the
-                                         period, as asked)
+Cr  1.09.01.0001  GST Saving Reserve    (Equity)
 ```
 
 posted immediately (own journal entry, Miscellaneous Operations
 journal), linked back to the source invoice/bill via a
-`combine001.gst.saving.line` record (*Combine001 > Taxation > GST
-Saved* — list + pivot, groupable by Sale/Purchase/Customer/Month, with a
-running total). This is **deliberately kept out of the real P&L** (it
-never touches an income/expense account) — it's a pure memo/management
-metric of the value of off-GST-books trade, not a real tax liability or
-saving; both accounts sit in their own dedicated groups (`3.13`, `1.09`)
-so they're already easy to spot as distinct lines on the standard
-Balance Sheet. **On seeing the Balance Sheet with vs. without the GST
-Saving impact:** rather than hacking a checkbox into Odoo's Enterprise
-financial-report engine (a real, version-fragile undertaking for a
-niche need), the *GST Saved* report above already gives a direct running
-total, and because both accounts are isolated in their own groups, the
-standard Balance Sheet's line-folding lets you collapse/expand them
-to see the delta directly — the simpler, safer answer to "give me an
-easy way to see the impact."
+`combine001.gst.saving.line` record — *Combine001 > Taxation > GST
+Saved*, **invoice/bill-wise**: list view grouped by Sale/Purchase then
+Customer/Vendor (drop the grouping, or add "Invoice/Bill", to see every
+individual entry), each row showing the source invoice/bill and
+partner directly, with a running total; the form view (click a row) has
+"Open Invoice/Bill" and "Open GST Saving Entry" buttons; the pivot view
+can drill Sale/Purchase → Customer/Vendor → Invoice/Bill by month. This
+is **deliberately kept out of the real P&L** (it never touches an
+income/expense account) — a pure memo/management metric of the value of
+off-GST-books trade, not a real tax liability or saving.
+
+**Where it shows on the Balance Sheet** (*Accounting > Reporting >
+Balance Sheet*, verified against a real posted entry):
+- `GST Saving` → **ASSETS > Current Assets** (verified: `9,000.00`
+  appeared there for a test entry)
+- `GST Saving Reserve` → **EQUITY (& EARNINGS) > Equity**, as the
+  **last line** in that section — sorting after Retained Earnings /
+  Profit Distribution (groups `1.03`/`1.05`), which is what "below
+  Profit/(Loss) for the period" could reasonably ask for from the CoA
+  side. One honest caveat: Odoo's own Balance Sheet renders "Equity"
+  (static accounts, incl. this one) as a section that comes *before* its
+  own separate, computed "Earnings" section (Current Year Unallocated
+  Earnings = the live Profit/(Loss) figure) — so in the rendered report
+  specifically, GST Saving Reserve sits just *above* that Earnings
+  section, not literally under the number itself. It's still the very
+  last, clearly separated line before it, which is as close as the
+  report's own fixed structure allows.
+
+**Seeing the impact with vs. without GST Saving:** rather than hacking a
+checkbox into Odoo's Enterprise financial-report engine (a real,
+version-fragile undertaking for a niche need), the *GST Saved* report
+gives a direct running total, and because both accounts are isolated in
+their own dedicated groups (`3.13`, `1.09`) with no sibling accounts,
+the standard Balance Sheet's own line-folding already lets you
+collapse/expand exactly these two lines to see the delta directly — the
+simpler, safer answer to "give me an easy way to see the impact."
 
 ## "Quotation" → "Sales Contract"
 
@@ -282,7 +300,14 @@ on every future upgrade too:
    first attempt.
 2. Sets the company currency to **PKR**, now that step 1 has cleared
    anything that would block it (activates the PKR currency record if
-   needed).
+   needed). Also force-updates anything else that stores its **own**
+   currency independently instead of following the company automatically
+   — a default `product.pricelist` in particular is auto-created by
+   `product`/`sale_management` using whatever the company's currency
+   happened to be at that exact moment, which can be stale (still USD
+   from before this module ever ran, even after the company itself is
+   correctly PKR) — and any `account.journal` with a stray non-PKR
+   currency override gets cleared back to "follow company currency".
 3. Cancels Odoo's own fallback "auto-install a generic Chart of Accounts"
    behaviour, which would otherwise create a *second*, competing default
    CoA and journals for any company with no localization chosen (see the
