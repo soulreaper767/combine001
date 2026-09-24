@@ -129,7 +129,23 @@ class AccountPaymentRegister(models.TransientModel):
     _inherit = 'account.payment.register'
 
     def _create_payment_vals_from_wizard(self, batch_result):
+        # Single-invoice registration (the common case) goes through
+        # this method.
         vals = super()._create_payment_vals_from_wizard(batch_result)
+        vals.update(self.env['account.payment']._combine001_default_wht_vals(
+            partner_id=vals.get('partner_id'),
+            payment_type=vals.get('payment_type'),
+            pay_date=vals.get('date') or fields.Date.context_today(self),
+            moves=batch_result['lines'].move_id,
+        ))
+        return vals
+
+    def _create_payment_vals_from_batch(self, batch_result):
+        # A multi-invoice, ungrouped payment goes through THIS method
+        # instead - _create_payments() picks one or the other depending
+        # on edit_mode, never both, so the defaults must be applied here
+        # too or they silently never apply for that case.
+        vals = super()._create_payment_vals_from_batch(batch_result)
         vals.update(self.env['account.payment']._combine001_default_wht_vals(
             partner_id=vals.get('partner_id'),
             payment_type=vals.get('payment_type'),
