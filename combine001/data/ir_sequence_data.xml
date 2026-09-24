@@ -7,4 +7,28 @@
         <field name="padding">4</field>
         <field name="company_id" eval="False"/>
     </record>
+
+    <record id="seq_sale_amendment" model="ir.sequence">
+        <field name="name">Combine001 Contract Amendment</field>
+        <field name="code">combine001.sale.amendment</field>
+        <field name="prefix">AMD/%(year)s/</field>
+        <field name="padding">4</field>
+        <field name="company_id" eval="False"/>
+    </record>
+
+    <record id="seq_delivery_out" model="ir.sequence">
+        <field name="name">Combine001 Delivery Out</field>
+        <field name="code">combine001.delivery.out</field>
+        <field name="prefix">DO/%(year)s/</field>
+        <field name="padding">4</field>
+        <field name="company_id" eval="False"/>
+    </record>
+
+    <record id="seq_gate_pass" model="ir.sequence">
+        <field name="name">Combine001 Gate Pass</field>
+        <field name="code">combine001.gate.pass</field>
+        <field name="prefix">GP/%(year)s/</field>
+        <field name="padding">4</field>
+        <field name="company_id" eval="False"/>
+    </record>
 </odoo>

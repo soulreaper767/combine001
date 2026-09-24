@@ -31,7 +31,30 @@
                     <field name="commission_rate" invisible="not commission_agent_id"/>
                     <field name="commission_base" invisible="not commission_agent_id"/>
                 </group>
+                <group name="combine001_registration" string="Tax Registration">
+                    <field name="x_gst_status"/>
+                    <field name="x_income_tax_status"/>
+                    <field name="x_pra_status" invisible="not x_show_pra_status"/>
+                </group>
             </group>
+
+            <field name="state" widget="statusbar" statusbar_visible="draft,sent,sale" position="after">
+                <button string="Create Delivery Out" name="action_combine001_create_delivery_out" type="object"
+                        class="btn-secondary" invisible="state != 'sale'"/>
+            </field>
+
+            <div name="button_box" position="inside">
+                <button name="action_view_x_delivery_outs" type="object"
+                        class="oe_stat_button" icon="fa-truck"
+                        invisible="x_delivery_out_count == 0">
+                    <field name="x_delivery_out_count" widget="statinfo" string="Delivery Outs"/>
+                </button>
+                <button name="action_view_x_amendments" type="object"
+                        class="oe_stat_button" icon="fa-pencil-square-o"
+                        invisible="x_amendment_count == 0">
+                    <field name="x_amendment_count" widget="statinfo" string="Amendments"/>
+                </button>
+            </div>
         </field>
     </record>
 </odoo>

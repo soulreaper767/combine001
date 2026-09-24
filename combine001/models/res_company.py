@@ -137,8 +137,26 @@ class ResCompany(models.Model):
             company, 'vendors.csv', 'payable_account_code', account_by_code,
             customer_rank=0, supplier_rank=1, property_field='property_account_payable_id',
         )
+        self._combine001_rename_delivery_picking_types(company)
 
         _logger.info("Combine001: import complete - %s accounts on record.", len(account_by_code))
+
+    def _combine001_rename_delivery_picking_types(self, company):
+        """BRD sec. 7.1: 'Delivery Note' functionality is reused as-is,
+        only the business-facing name changes to 'Delivery Challan' -
+        each warehouse's own outgoing stock.picking.type record (drives
+        the Inventory app's operation-type cards/menus) is real per-
+        company data, not a fixed view/action, so it's renamed here
+        rather than via a static XML inherit. Idempotent: only touches
+        records still on the stock default name, never overwrites a
+        name a user has since customised."""
+        picking_types = self.env['stock.picking.type'].search([
+            ('company_id', '=', company.id), ('code', '=', 'outgoing'),
+            ('name', 'in', ('Delivery Orders', 'Delivery')),
+        ])
+        if picking_types:
+            picking_types.write({'name': 'Delivery Challans'})
+            _logger.info("Combine001: %s outgoing picking type(s) renamed to 'Delivery Challans'.", len(picking_types))
 
     # -- new structural accounts (Finished Goods, Socks, GST Saving) -----
 

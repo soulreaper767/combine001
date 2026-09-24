@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_delivery_out_list" model="ir.ui.view">
+        <field name="name">combine001.delivery.out.list</field>
+        <field name="model">combine001.delivery.out</field>
+        <field name="arch" type="xml">
+            <list string="Delivery Out">
+                <field name="name"/>
+                <field name="date"/>
+                <field name="sale_order_id"/>
+                <field name="partner_id"/>
+                <field name="x_gst_status"/>
+                <field name="state" widget="badge" decoration-success="state == 'confirmed'"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_delivery_out_form" model="ir.ui.view">
+        <field name="name">combine001.delivery.out.form</field>
+        <field name="model">combine001.delivery.out</field>
+        <field name="arch" type="xml">
+            <form string="Delivery Out">
+                <header>
+                    <button string="Confirm" name="action_confirm" type="object"
+                            class="oe_highlight" invisible="state != 'draft'"/>
+                    <field name="state" widget="statusbar"/>
+                </header>
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_view_pickings" type="object"
+                                class="oe_stat_button" icon="fa-truck"
+                                invisible="picking_count == 0">
+                            <field name="picking_count" widget="statinfo" string="Delivery Challans"/>
+                        </button>
+                    </div>
+                    <div class="alert alert-info" role="alert">
+                        No stock is issued from this document (BRD sec. 6.2) - stock only
+                        moves when the Delivery Challan is validated.
+                    </div>
+                    <group>
+                        <group>
+                            <field name="sale_order_id" readonly="state != 'draft'"/>
+                            <field name="partner_id" readonly="1"/>
+                            <field name="date"/>
+                        </group>
+                        <group>
+                            <field name="x_gst_status" readonly="1"/>
+                            <field name="x_income_tax_status" readonly="1"/>
+                            <field name="x_pra_status" readonly="1" invisible="not x_show_pra_status"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Lines">
+                            <field name="line_ids" readonly="state != 'draft'">
+                                <list editable="bottom">
+                                    <field name="sale_line_id"/>
+                                    <field name="product_id" readonly="1"/>
+                                    <field name="product_uom_qty" readonly="1"/>
+                                    <field name="product_uom" readonly="1"/>
+                                    <field name="price_unit" readonly="1"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_delivery_out_search" model="ir.ui.view">
+        <field name="name">combine001.delivery.out.search</field>
+        <field name="model">combine001.delivery.out</field>
+        <field name="arch" type="xml">
+            <search string="Delivery Out">
+                <field name="name"/>
+                <field name="sale_order_id"/>
+                <field name="partner_id"/>
+                <filter string="Draft" name="filter_draft" domain="[('state', '=', 'draft')]"/>
+                <filter string="Confirmed" name="filter_confirmed" domain="[('state', '=', 'confirmed')]"/>
+                <group>
+                    <filter string="Customer" name="group_partner" context="{'group_by': 'partner_id'}"/>
+                    <filter string="Contract" name="group_order" context="{'group_by': 'sale_order_id'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_delivery_out" model="ir.actions.act_window">
+        <field name="name">Delivery Out</field>
+        <field name="res_model">combine001.delivery.out</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="view_delivery_out_search"/>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                No Delivery Out documents yet.
+            </p><p>
+                Created from a confirmed Contract/Sales Order (BRD sec. 6) - a
+                pure logistics reference document, it never deducts stock.
+            </p>
+        </field>
+    </record>
+</odoo>

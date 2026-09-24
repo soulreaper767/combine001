@@ -1,4 +1,4 @@
-from odoo import _, models
+from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 
 from .combine001_constants import GST_SAVING_ASSET_CODE, GST_SAVING_EQUITY_CODE
@@ -7,7 +7,22 @@ _GST_MOVE_TYPES = ('out_invoice', 'out_refund', 'in_invoice', 'in_refund')
 
 
 class AccountMove(models.Model):
-    _inherit = 'account.move'
+    _name = 'account.move'
+    _inherit = ['account.move', 'combine001.tax.status.mixin']
+
+    x_sale_order_id = fields.Many2one(
+        'sale.order', compute='_compute_x_sale_order_id', string='Contract / Sales Order', store=True)
+    x_show_pra_status = fields.Boolean(compute='_compute_x_show_pra_status')
+
+    @api.depends('invoice_line_ids.sale_line_ids.order_id')
+    def _compute_x_sale_order_id(self):
+        for move in self:
+            move.x_sale_order_id = move.invoice_line_ids.sale_line_ids.order_id[:1]
+
+    @api.depends('invoice_line_ids.product_id.x_pra_applicable')
+    def _compute_x_show_pra_status(self):
+        for move in self:
+            move.x_show_pra_status = bool(move.invoice_line_ids.product_id.filtered('x_pra_applicable'))
 
     def action_post(self):
         invoices = self.filtered(lambda m: m.move_type == 'out_invoice')
@@ -148,3 +163,25 @@ class AccountMove(models.Model):
             'rate': (total_gst / total_base * 100.0) if total_base else 0.0,
             'gst_amount': total_gst,
         })
+
+
+class AccountMoveLine(models.Model):
+    """BRD sec. 9/11: the Contract-approved price flows to the Sales
+    Invoice and cannot be manually overridden there either - only a
+    Contract amendment (applied with the combine001_amendment_apply
+    context, see sale_amendment.py) may change it. Only enforced while
+    the invoice is still draft: once posted it's a real financial record,
+    corrected the normal accounting way (credit note), not rewritten."""
+    _inherit = 'account.move.line'
+
+    def write(self, vals):
+        if ('price_unit' in vals or 'quantity' in vals) and not self.env.context.get('combine001_amendment_apply'):
+            for line in self:
+                if line.sale_line_ids and line.move_id.state == 'draft' and line.move_id.move_type == 'out_invoice':
+                    raise UserError(_(
+                        "%(product)s: the price/quantity on this invoice line comes "
+                        "from a Contract and cannot be changed directly. Use a "
+                        "Contract Amendment instead.",
+                        product=line.product_id.display_name,
+                    ))
+        return super().write(vals)

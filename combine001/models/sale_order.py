@@ -5,7 +5,8 @@ from .commission_agent import COMMISSION_BASE_SELECTION
 
 
 class SaleOrder(models.Model):
-    _inherit = 'sale.order'
+    _name = 'sale.order'
+    _inherit = ['sale.order', 'combine001.tax.status.mixin']
 
     x_price_approval_state = fields.Selection([
         ('none', 'No Change'),
@@ -20,6 +21,31 @@ class SaleOrder(models.Model):
     commission_agent_id = fields.Many2one('combine001.commission.agent', string='Commission Agent', tracking=True)
     commission_rate = fields.Float(string='Commission Rate (%)')
     commission_base = fields.Selection(COMMISSION_BASE_SELECTION, string='Commission Base')
+
+    x_show_pra_status = fields.Boolean(compute='_compute_x_show_pra_status', string='Show PRA Status')
+    x_amendment_ids = fields.One2many('combine001.sale.amendment', 'sale_order_id', string='Contract Amendments')
+    x_amendment_count = fields.Integer(compute='_compute_x_amendment_count')
+    x_delivery_out_ids = fields.One2many('combine001.delivery.out', 'sale_order_id', string='Delivery Outs')
+    x_delivery_out_count = fields.Integer(compute='_compute_x_delivery_out_count')
+
+    @api.depends('order_line.product_id.x_pra_applicable')
+    def _compute_x_show_pra_status(self):
+        for order in self:
+            order.x_show_pra_status = bool(order.order_line.product_id.filtered('x_pra_applicable'))
+
+    def _compute_x_amendment_count(self):
+        counts = dict(self.env['combine001.sale.amendment']._read_group(
+            [('sale_order_id', 'in', self.ids)], ['sale_order_id'], ['__count'],
+        ))
+        for order in self:
+            order.x_amendment_count = counts.get(order, 0)
+
+    def _compute_x_delivery_out_count(self):
+        counts = dict(self.env['combine001.delivery.out']._read_group(
+            [('sale_order_id', 'in', self.ids)], ['sale_order_id'], ['__count'],
+        ))
+        for order in self:
+            order.x_delivery_out_count = counts.get(order, 0)
 
     @api.onchange('commission_agent_id')
     def _onchange_combine001_commission_agent_id(self):
@@ -71,6 +97,47 @@ class SaleOrder(models.Model):
                     'approval and cannot be confirmed yet.', order.name))
         return super().action_confirm()
 
+    def action_combine001_create_delivery_out(self):
+        """BRD sec. 6: Delivery Out is generated from the confirmed Sales
+        Order, mirrors its lines (no stock impact - that only happens
+        later, when the Delivery Challan/stock.picking is validated)."""
+        self.ensure_one()
+        if self.state != 'sale':
+            raise UserError(_('Delivery Out can only be created from a confirmed Sales Order.'))
+        delivery_out = self.env['combine001.delivery.out'].create({
+            'sale_order_id': self.id,
+            'line_ids': [(0, 0, {'sale_line_id': line.id}) for line in self.order_line
+                         if line.product_id and not line.display_type],
+        })
+        return {
+            'type': 'ir.actions.act_window',
+            'res_model': 'combine001.delivery.out',
+            'view_mode': 'form',
+            'res_id': delivery_out.id,
+        }
+
+    def action_view_x_delivery_outs(self):
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Delivery Outs'),
+            'res_model': 'combine001.delivery.out',
+            'view_mode': 'list,form',
+            'domain': [('sale_order_id', '=', self.id)],
+            'context': {'default_sale_order_id': self.id},
+        }
+
+    def action_view_x_amendments(self):
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Contract Amendments'),
+            'res_model': 'combine001.sale.amendment',
+            'view_mode': 'list,form',
+            'domain': [('sale_order_id', '=', self.id)],
+            'context': {'default_sale_order_id': self.id},
+        }
+
 
 class SaleOrderLine(models.Model):
     _inherit = 'sale.order.line'
@@ -95,6 +162,17 @@ class SaleOrderLine(models.Model):
         return lines
 
     def write(self, vals):
+        if ('price_unit' in vals or 'product_uom_qty' in vals) and not self.env.context.get('combine001_amendment_apply'):
+            for line in self:
+                if line.display_type or not line.product_id or line.x_is_charge_line:
+                    continue
+                if line.order_id.state == 'sale':
+                    raise UserError(_(
+                        "%(product)s: the price/quantity on a confirmed Contract "
+                        "cannot be changed directly. Use a Contract Amendment "
+                        "(Combine001 > Contract Amendments) instead.",
+                        product=line.product_id.display_name,
+                    ))
         res = super().write(vals)
         if 'price_unit' in vals:
             for line in self:

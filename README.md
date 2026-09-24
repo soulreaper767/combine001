@@ -176,6 +176,84 @@ dependency), and anything outside the core Sales app (Subscriptions, POS,
 Website/eCommerce, email template wording) — out of scope per the chosen
 rename scope.
 
+## Contract → Sales Order → Delivery Out → Delivery Challan → Gate Pass → Sales Invoice
+
+Implements `BRD for sales.docx`. A "Contract" is exactly what the section
+above calls a Sales Contract — a `sale.order` in `draft`/`sent` state; a
+"Sales Order" is the same record once confirmed (`state == 'sale'`). No
+separate Contract model was introduced — the BRD's own title describes
+the change as mapping this flow onto "the existing quotation-to-delivery
+process", and Odoo's native Quotation→Order transition already *is* that
+first step.
+
+**Price lock.** Once a Contract is confirmed, `sale.order.line.write()`
+(`models/sale_order.py`) blocks any `price_unit`/`product_uom_qty` change
+outright (`UserError`, points the user at a Contract Amendment instead).
+The same lock is mirrored on draft invoice lines linked to a Contract
+line (`models/account_move.py`, `AccountMoveLine.write()`) — posted
+invoices are correctly left alone; a posted invoice is fixed with a
+credit note, not silently rewritten.
+
+**Contract Amendment** (`models/sale_amendment.py`,
+`combine001.sale.amendment` + `.line`) is the only door through that
+lock: draft → submit → Sales Manager approval → Apply. Applying writes
+straight onto the *same* existing `sale.order.line` record (never
+creates a second line for a line being revised — a genuinely new product
+can also be added through the same amendment), re-baselines
+`x_quoted_price`/`x_quoted_qty` so the pre-existing "can't exceed the
+quotation" guard (BRD SO-005/SO-006, unrelated feature) keeps working
+against the new number afterward, pushes the revised price onto any
+still-draft invoice lines already raised against that line, and chatter-
+logs every apply with user/date/old→new values.
+
+**Delivery Out** (`models/delivery_out.py`, `combine001.delivery.out` +
+`.line`) is a new, plain (non-stock) document created from a confirmed
+Sales Order via the "Create Delivery Out" button. Its lines are
+`related(..., store=True)` back onto the originating `sale.order.line` —
+price/qty changes from a later Contract Amendment reach it automatically,
+with no propagation code and no possibility of a duplicate line, since
+there is exactly one Delivery Out line per Sales Order line.
+
+**Delivery Challan** is the *existing* `stock.picking`/Delivery Note
+functionality, technically untouched (still the only document that
+deducts stock, still only on validation) and cosmetically relabeled
+"Delivery Challan" — same technique as the Quotation rename, plus a
+`stock.picking.type._get_code_report_name()` override so the PDF title
+follows too, and a one-time idempotent rename of each warehouse's
+outgoing `stock.picking.type.name` (real per-company data, done in
+`res_company._combine001_rename_delivery_picking_types`, not a fixed XML
+id). Gained fields: `x_delivery_out_id` (set when raised from a Delivery
+Out), the 3 registration-status fields, and `x_contract_price` on each
+`stock.move` (`related='sale_line_id.price_unit'`).
+
+**Gate Pass** (`models/gate_pass.py`, `combine001.gate.pass` + `.line`)
+is created from a *validated* (`state == 'done'`) outgoing Delivery
+Challan via a button on the picking form. One per Delivery Challan
+(DB unique constraint on `picking_id`) — no stock impact, lines mirror
+the challan's own `stock.move`s via `related` fields.
+
+**Tax Info tab** (`models/res_partner.py`, `views/res_partner_views.xml`)
+replaces the BRD's flat Registered/Unregistered checkbox pair with a
+separate status per tax regime — GST, Income Tax, PRA — since this
+business actually tracks all three independently. All 3 flow onto every
+document above via `models/combine001_tax_status_mixin.py`
+(`combine001.tax.status.mixin`, an `AbstractModel` with 3
+`related(..., store=True)` Selection fields against `partner_id`, mixed
+into `sale.order`, `stock.picking` and `account.move`; Delivery Out/Gate
+Pass declare the same 3 fields directly since their `partner_id` is
+itself `related`). PRA status is deliberately the odd one out: it's
+hidden on a document (`x_show_pra_status`, computed per model from that
+document's own lines) unless at least one line's product has the new
+`product.template.x_pra_applicable` flag set (Sales tab) — most of this
+business is goods (GST), not services (PRA).
+
+**Commission Report payment tracking** (`models/commission_line.py`):
+`payment_state` (Unpaid/Paid), `payment_id`/`payment_reference`/
+`payment_date`, and computed `amount_outstanding`/`amount_paid` (BRD
+sec. 13.3's explicit ask). Marked Paid either per-record
+(`action_mark_paid`) or in bulk from the Commission Report list's Action
+menu (`combine001.commission.payment.wizard`).
+
 ## Roles & demo users (BRD Section 3.1)
 
 Every BRD role gets its own **Combine001-branded security group**

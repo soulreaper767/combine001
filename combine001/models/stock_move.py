@@ -1,9 +1,13 @@
-from odoo import _, models
+from odoo import _, fields, models
 from odoo.exceptions import UserError
 
 
 class StockMove(models.Model):
     _inherit = 'stock.move'
+
+    x_contract_price = fields.Float(
+        related='sale_line_id.price_unit', store=True, string='Contract Price',
+        help='Read-only, mirrored from the Contract/Sales Order line (BRD sec. 7.4).')
 
     def _action_done(self, cancel_backorder=False):
         for move in self:
