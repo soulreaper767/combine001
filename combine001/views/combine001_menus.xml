@@ -37,6 +37,10 @@
               parent="menu_combine001_taxation" action="action_tax_adjustment" sequence="20"/>
     <menuitem id="menu_combine001_gst_saving_line" name="GST Saved"
               parent="menu_combine001_taxation" action="action_gst_saving_line" sequence="30"/>
+    <menuitem id="menu_combine001_withholding_rate" name="Withholding Tax Rates"
+              parent="menu_combine001_taxation" action="action_withholding_rate" sequence="40"/>
+    <menuitem id="menu_combine001_wht_variance" name="Withholding Tax Variance"
+              parent="menu_combine001_taxation" action="action_wht_variance" sequence="50"/>
 
     <menuitem id="menu_combine001_audit" name="Audit"
               parent="menu_combine001_root" sequence="40"

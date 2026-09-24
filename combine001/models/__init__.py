@@ -14,5 +14,7 @@ from . import stock_move
 from . import stock_picking
 from . import gate_pass
 from . import account_move
+from . import withholding_rate
+from . import account_payment
 from . import tax_adjustment
 from . import res_company

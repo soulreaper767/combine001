@@ -24,6 +24,16 @@ class AccountMove(models.Model):
         for move in self:
             move.x_show_pra_status = bool(move.invoice_line_ids.product_id.filtered('x_pra_applicable'))
 
+    def _combine001_has_gst_charged(self):
+        """Used by account_payment.py to default 'Is Withholding
+        Applicable' on the payment-registration wizard: True if any
+        line on this invoice/bill actually carries one of this module's
+        GST taxes (not just a product with a GST rate configured -
+        that's the GST Saving feature's fallback, this checks what was
+        really charged)."""
+        self.ensure_one()
+        return any(t.x_combine001_gst for line in self.invoice_line_ids for t in line.tax_ids)
+
     def action_post(self):
         invoices = self.filtered(lambda m: m.move_type == 'out_invoice')
         gst_relevant = self.filtered(lambda m: m.move_type in _GST_MOVE_TYPES)

@@ -7,7 +7,9 @@ from datetime import date
 from odoo import api, models
 from odoo.exceptions import UserError
 
-from .combine001_constants import GST_SAVING_ASSET_CODE, GST_SAVING_EQUITY_CODE
+from .combine001_constants import (
+    GST_SAVING_ASSET_CODE, GST_SAVING_EQUITY_CODE, WHT_SALE_RECEIVABLE_CODE,
+)
 
 _logger = logging.getLogger(__name__)
 
@@ -48,6 +50,13 @@ _STRUCTURAL_ACCOUNTS = [
     ('5.01.01.0099', 'RAW MATERIAL CONSUMED - LYCRA', 'expense_direct_cost'),
     (GST_SAVING_ASSET_CODE, 'GST SAVING', 'asset_current'),
     (GST_SAVING_EQUITY_CODE, 'GST SAVING RESERVE', 'equity'),
+    # Withholding tax (sale-side receivable only - the purchase-side
+    # payable reuses an existing leaf account, see combine001_constants.py).
+    # Parent group "3.11.03 ADVANCE INCOME TAX AGAINST LOCAL SUPPLIES"
+    # already exists in the historical import (account_groups.csv) with
+    # no leaf account under it yet - not added to _STRUCTURAL_GROUPS since
+    # it isn't a new group.
+    (WHT_SALE_RECEIVABLE_CODE, 'ADVANCE INCOME TAX AGAINST LOCAL SUPPLIES', 'asset_current'),
 ]
 
 # Existing (already-imported) Sales Tax accounts this module's GST taxes

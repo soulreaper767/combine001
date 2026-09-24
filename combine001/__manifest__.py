@@ -60,6 +60,17 @@ Implements the Business Requirements Document "Odoo ERP Enhancements v1.0"
 * Commission Report payment tracking: Paid/Unpaid status, payment
   reference/date, Outstanding/Paid commission columns, and a bulk "Mark
   as Paid" action
+* Withholding tax automation on Payments: an "Is Withholding Applicable"
+  checkbox (defaulted automatically when registering payment against a
+  GST-bearing bill, purchase side), a per-partner time-ranged
+  Withholding Tax Rate table with exemption periods (a possibly-0%
+  reduced rate for the exemption's duration, standard rate resumes
+  after), correct net-of-withholding accounting entries via Odoo's own
+  native payment-withholding mechanism, tagged to Chart of Accounts
+  accounts (reusing an existing leaf account purchase-side, adding one
+  new leaf sale-side — see models/account_payment.py / README), and a
+  Withholding Tax Variance report comparing what a customer actually
+  withheld against what the configured rate says they should have
 
 Several points are explicitly left open in the BRD for client sign-off
 (Section 12, "Open Items for Functional Design"). This module ships a
@@ -104,6 +115,8 @@ README for the assumptions made and how to change them:
         'views/tax_adjustment_views.xml',
         'views/tax_ledger_views.xml',
         'views/gst_saving_views.xml',
+        'views/withholding_rate_views.xml',
+        'views/account_payment_views.xml',
         'views/audit_views.xml',
         'views/combine001_menus.xml',
         'data/combine001_import_run.xml',

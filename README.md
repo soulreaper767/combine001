@@ -254,6 +254,84 @@ sec. 13.3's explicit ask). Marked Paid either per-record
 (`action_mark_paid`) or in bulk from the Commission Report list's Action
 menu (`combine001.commission.payment.wizard`).
 
+## Withholding tax automation on Payments
+
+Follow-up request on top of the BRD. `combine001.withholding.rate`
+(`models/withholding_rate.py`) is one row per Vendor/Customer + date
+range: a standard `rate`, and an optional exemption for that period with
+its own `exempt_rate` (can be 0% for a full exemption) — rates can
+therefore change over time and a partner's exemption certificate expires
+back to the standard rate automatically, purely by date. "purchase" =
+the rate WE withhold paying that Vendor; "sale" = the rate THAT CUSTOMER
+is expected to withhold paying us (tracked from our own side, since we
+don't see their books).
+
+**Accounting mechanism.** `account.payment` gains `x_wht_applicable`,
+`x_wht_rate`, `x_wht_amount` (computed) and `x_wht_account_id`
+(`models/account_payment.py`). Rather than hand-building extra journal
+lines, this overrides Odoo core's own `_prepare_move_withholding_lines`
+— a documented no-op stub that exists in core `account` specifically for
+this ("payment net of tax withheld"): the framework already reduces the
+liquidity (bank) line by the withholding amount while the counterpart
+(payable/receivable) line still clears the FULL invoice amount, so the
+override only needs to return the withholding line itself, sign flipped
+by direction (credit the Withholding Payable liability, purchase side /
+debit the Withholding Receivable asset, sale side). Verified by
+literally reading the posted `account.move.line`s: paying a PKR 1,180
+GST-bearing bill at 10% correctly posts Dr Payable 1,180 / Cr Bank 1,062
+/ Cr Withholding Tax Payable 118 — the bank line, not the payable, absorbs
+the withholding.
+
+**CoA accounts** (`models/combine001_constants.py`): purchase-side reuses
+an **existing** leaf account from the real imported CoA — `2.12.01.0001
+TAX AT SOURCE - PARTIES`, sitting in the CoA's own `2.12 TAX AT SOURCE`
+liability group, an exact match for "tax withheld from party payments,
+not yet remitted". Sale-side has no existing leaf, only a matching empty
+group (`3.11.03 ADVANCE INCOME TAX AGAINST LOCAL SUPPLIES`) — one new
+leaf account (`3.11.03.0001`, same name, asset) is created there, same
+`_STRUCTURAL_ACCOUNTS` mechanism as the GST Saving accounts.
+
+**Purchase-side "applicable by default".** A bare `account.payment` has
+no reliable way to know which bill it's settling until it's actually
+reconciled. The normal path — clicking **Register Payment** on a posted
+bill — does know, so `account.payment.register._create_payment_vals_from_wizard`
+is overridden to set `x_wht_applicable = True` by default exactly when
+the bill being paid actually carries one of this module's GST taxes
+(`account.move._combine001_has_gst_charged`), and to default `x_wht_rate`/
+`x_wht_account_id` from the rate table for that vendor/date either way.
+A manually-created payment (no invoice context) instead falls back to a
+plain `partner_id`/`payment_type`/`date` onchange that defaults the rate/
+account but leaves `x_wht_applicable` for the user to tick.
+
+**Withholding Tax Variance report** (Combine001 > Taxation): BRD ask —
+"see if customer deducted more or less than the amount that must have
+been deducted". Every inbound (customer) payment also computes
+`x_wht_expected_rate`/`x_wht_expected_amount` fresh from the rate table
+for its own date, independent of whatever was actually entered, plus
+`x_wht_variance = actual - expected`; the report is simply
+`account.payment` filtered to customer payments with a "Variance Only"
+search filter, list + pivot.
+
+**Known pre-existing gap this depends on** (documented above under Chart
+of Accounts, not new here): since the generic CoA auto-install is
+deliberately cancelled, `res.company.transfer_account_id` and each
+partner's `property_account_receivable_id`/`property_account_payable_id`
+are never auto-seeded, and Odoo needs at least one of those to register
+*any* payment at all (withholding or not). A human sets these once from
+Accounting > Configuration before payments (with or without withholding)
+can be used — same category of "left for a human to wire before go-live"
+gap as the bank-journal defaults already noted above.
+
+Verified: fresh install + 2 upgrade cycles clean, and a full functional
+test (24 assertions) covering CoA account reuse/creation, the rate
+table's overlap constraint, purchase-side auto-default from a real
+GST-bearing bill through the actual Register Payment wizard with the
+resulting journal entry checked line-by-line, sale-side expected-vs-
+actual variance math (including an intentionally over-withheld case),
+an exemption period resolving to its reduced rate then correctly
+expiring back to no-rate, and the variance report's own domain — all
+passing.
+
 ## Roles & demo users (BRD Section 3.1)
 
 Every BRD role gets its own **Combine001-branded security group**
