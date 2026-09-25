@@ -184,6 +184,13 @@ class AccountMoveLine(models.Model):
     corrected the normal accounting way (credit note), not rewritten."""
     _inherit = 'account.move.line'
 
+    @api.depends('move_id.partner_id.x_gst_status')
+    def _compute_tax_ids(self):
+        super()._compute_tax_ids()
+        for line in self:
+            if line.move_id.is_sale_document(include_receipts=True):
+                line.tax_ids = line.tax_ids._combine001_swap_gst_for_buyer(line.move_id.partner_id, line.move_id.company_id)
+
     def write(self, vals):
         if ('price_unit' in vals or 'quantity' in vals) and not self.env.context.get('combine001_amendment_apply'):
             for line in self:

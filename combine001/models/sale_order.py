@@ -150,6 +150,12 @@ class SaleOrderLine(models.Model):
     x_quoted_price = fields.Float(copy=False, string='Originally Quoted Price')
     x_is_charge_line = fields.Boolean(copy=False, string='Is Additional Charge')
 
+    @api.depends('order_id.partner_id.x_gst_status')
+    def _compute_tax_ids(self):
+        super()._compute_tax_ids()
+        for line in self:
+            line.tax_ids = line.tax_ids._combine001_swap_gst_for_buyer(line.order_id.partner_id, line.company_id)
+
     @api.model_create_multi
     def create(self, vals_list):
         lines = super().create(vals_list)

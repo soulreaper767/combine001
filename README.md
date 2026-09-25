@@ -100,6 +100,21 @@ both directions (company + every imported product) since the source
 data doesn't say which specific items need 22% — flip those manually
 once known (product's Sales/Purchase tab, or Accounting > Taxes).
 
+**Sale-side rate now follows the buyer's GST registration status**
+(follow-up request): FBR charges a higher rate on supplies to
+unregistered buyers, so a Sales Contract/Order line or a Sales Invoice
+line no longer just takes whatever GST tax is configured on the
+product — `models/account_tax.py`'s `_combine001_swap_gst_for_buyer`
+swaps in **18% if the customer's Tax Info tab says Registered, 22% if
+Unregistered** (the field's own default), overriding
+`sale.order.line._compute_tax_ids` and
+`account.move.line._compute_tax_ids` (`models/sale_order.py` /
+`models/account_move.py`) on top of Odoo's normal product-tax default,
+so it also live-recomputes if the customer on an existing
+order/invoice is changed. Purchase-side GST (what a vendor charges us)
+is untouched — "buyer" here always means our own customer. Existing
+records aren't retroactively rewritten, only new/recomputed lines.
+
 **"GST Saved":** whenever a customer invoice or vendor bill (or credit
 note/refund) is **posted with no GST charged at all**,
 `models/account_move.py`'s `_combine001_create_gst_saving_line` computes
