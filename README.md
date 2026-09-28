@@ -210,6 +210,26 @@ dependency), and anything outside the core Sales app (Subscriptions, POS,
 Website/eCommerce, email template wording) — out of scope per the chosen
 rename scope.
 
+**Contract Date, properly trackable** (follow-up request): core Odoo
+hides the draft/sent Quotation Date behind `base.group_no_one`
+(developer mode only) on the form, and its Quotations list shows record
+*Creation* Date instead of the actual document date — its own
+assumption that a quotation's date isn't normally worth a regular user's
+attention before confirmation. Not true here: a Contract is a formal,
+date-significant document from day one, so `date_order` (`sale.order`'s
+native date field, `_order = 'date_order desc, id desc'` by default —
+records already sort newest-first by it) is now:
+- **Visible and editable on the form for every user**, not just in
+  debug mode (`views/sale_quotation_to_contract_views.xml` replaces the
+  restricted label/field outright rather than just renaming them),
+  labeled "Contract Date".
+- **A default-visible column on the Contracts list**, labeled "Contract
+  Date" (Creation Date kept as an optional, hidden-by-default column
+  rather than dropped).
+- **The "Group By" date option on the Contracts search**, relabeled
+  from "Order Date" to "Contract Date" (the Delivery Orders search
+  keeps its own separate wording for the same underlying filter).
+
 ## Contract → Delivery Order → Delivery Challan → Gate Pass → Sales Invoice
 
 Implements `BRD for sales.docx`, since refined by the **Change Request
