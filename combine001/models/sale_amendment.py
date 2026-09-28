@@ -15,9 +15,8 @@ class SaleAmendment(models.Model):
     SO-006 "can't exceed quotation" guard keeps working against the new
     baseline afterward. Also pushes the revised price onto any
     not-yet-posted Sales Invoice lines already raised against the
-    affected order lines (BRD sec. 9/12), and onto matching Delivery Out
-    lines (kept in sync automatically anyway via related/stored fields).
-    Every apply is chatter-logged with user/date and old->new values for
+    affected order lines (BRD sec. 9/12). Every apply is chatter-logged
+    with user/date and old->new values for
     the audit trail the BRD asks for.
     """
     _name = 'combine001.sale.amendment'

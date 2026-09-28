@@ -4,8 +4,8 @@ from odoo import fields, models
 class Combine001TaxStatusMixin(models.AbstractModel):
     """Registered/Unregistered status, mirrored from the Customer/Vendor
     master (res.partner's Tax Info tab) onto every document the BRD
-    requires it on: Contract/Sales Order, Delivery Out, Delivery Challan,
-    Gate Pass and Sales Invoice (BRD sec. 4.3). Each inheriting model
+    requires it on: Contract/Delivery Order, Delivery Challan, Gate Pass
+    and Sales Invoice (BRD sec. 4.3). Each inheriting model
     must already have its own `partner_id` field - this only adds the 3
     related, stored status fields so they're queryable/filterable on the
     document itself instead of always joining back to the partner.

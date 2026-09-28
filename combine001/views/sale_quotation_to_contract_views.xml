@@ -1,18 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <!-- "Sales Quotation" -> "Sales Contract" relabeling. Purely cosmetic:
-         renames labels/menus/buttons/report text within the core Sales
-         app. Does not touch the underlying sale.order model, fields,
-         states, or workflow - a "Sales Contract" here is exactly what
-         Odoo calls a Quotation (a draft/sent sale.order), matching the
-         textile-trade terminology Combine Spinning actually uses. -->
+    <!-- "Quotation" -> "Contract" relabeling, per the Change Request
+         Document for Sales Module (2026-09-28), which supersedes the
+         earlier "Sales Contract" wording with plain "Contract". Purely
+         cosmetic: renames labels/menus/buttons/report text within the
+         core Sales app. Does not touch the underlying sale.order model,
+         fields, states, or workflow - a "Contract" here is exactly what
+         Odoo calls a Quotation (a draft/sent sale.order). -->
 
     <!-- Main menu / breadcrumb: Sales > Orders > Quotations -->
     <record id="sale.action_quotations_with_onboarding" model="ir.actions.act_window">
-        <field name="name">Sales Contracts</field>
+        <field name="name">Contracts</field>
     </record>
     <record id="sale.action_quotations" model="ir.actions.act_window">
-        <field name="name">Sales Contracts</field>
+        <field name="name">Contracts</field>
     </record>
     <!-- The sidebar menuitem itself has its OWN stored `name` field,
          copied from the action's name only once, when the menu record
@@ -21,7 +22,7 @@
          rename above alone leaves the sidebar entry still reading
          "Quotations". Must be set explicitly here too. -->
     <record id="sale.menu_sale_quotations" model="ir.ui.menu">
-        <field name="name">Sales Contracts</field>
+        <field name="name">Contracts</field>
     </record>
 
     <!-- List view title shown when opening the Quotations action -->
@@ -31,22 +32,30 @@
         <field name="inherit_id" ref="sale.view_quotation_tree"/>
         <field name="arch" type="xml">
             <list position="attributes">
-                <attribute name="string">Sales Contracts</attribute>
+                <attribute name="string">Contracts</attribute>
             </list>
         </field>
     </record>
 
-    <!-- Search filters: "My Quotations" / "Quotations" -->
+    <!-- Search filters: "My Quotations" / "Quotations" / "Sales Orders" -
+         the last one lives in this same base search view (the Quotations
+         action's own search_view_id) and is renamed to "Delivery Orders"
+         here since this is the one place that filter is actually
+         user-visible (see sale_order_to_delivery_order_views.xml for the
+         rest of that rename). -->
     <record id="sale_order_view_search_inherit_quotation_combine001" model="ir.ui.view">
         <field name="name">sale.order.search.inherit.quotation.combine001</field>
         <field name="model">sale.order</field>
         <field name="inherit_id" ref="sale.sale_order_view_search_inherit_quotation"/>
         <field name="arch" type="xml">
             <filter name="my_quotation" position="attributes">
-                <attribute name="string">My Sales Contracts</attribute>
+                <attribute name="string">My Contracts</attribute>
             </filter>
             <filter name="draft" position="attributes">
-                <attribute name="string">Sales Contracts</attribute>
+                <attribute name="string">Contracts</attribute>
+            </filter>
+            <filter name="sales" position="attributes">
+                <attribute name="string">Delivery Orders</attribute>
             </filter>
         </field>
     </record>
@@ -58,7 +67,7 @@
         <field name="inherit_id" ref="sale.view_order_form"/>
         <field name="arch" type="xml">
             <button name="action_draft" position="attributes">
-                <attribute name="string">Set to Sales Contract</attribute>
+                <attribute name="string">Set to Contract</attribute>
             </button>
             <xpath expr="//div[@groups='base.group_no_one' and @invisible=&quot;state in ['sale', 'cancel']&quot;]/label[@for='date_order']" position="attributes">
                 <attribute name="string">Contract Date</attribute>
@@ -68,22 +77,22 @@
 
     <!-- "Mark Quotation as Sent" context-menu action -->
     <record id="sale.model_sale_order_action_quotation_sent" model="ir.actions.server">
-        <field name="name">Mark Sales Contract as Sent</field>
+        <field name="name">Mark Contract as Sent</field>
     </record>
 
     <!-- CRM Team "New Quotation" smart button -->
     <record id="sale.action_quotation_form" model="ir.actions.act_window">
-        <field name="name">New Sales Contract</field>
+        <field name="name">New Contract</field>
     </record>
 
     <!-- Sales > Configuration > Quotation Templates (action + menuitem
          both have their own hardcoded `name`, same as menu_sale_quotations
          above - both need setting explicitly, not just one or the other -->
     <record id="sale_management.sale_order_template_action" model="ir.actions.act_window">
-        <field name="name">Sales Contract Templates</field>
+        <field name="name">Contract Templates</field>
     </record>
     <record id="sale_management.sale_order_template_menu" model="ir.ui.menu">
-        <field name="name">Sales Contract Templates</field>
+        <field name="name">Contract Templates</field>
     </record>
     <record id="sale_order_template_view_tree_combine001" model="ir.ui.view">
         <field name="name">sale.order.template.list.combine001</field>
@@ -91,26 +100,23 @@
         <field name="inherit_id" ref="sale_management.sale_order_template_view_tree"/>
         <field name="arch" type="xml">
             <list position="attributes">
-                <attribute name="string">Sales Contract Template</attribute>
+                <attribute name="string">Contract Template</attribute>
             </list>
         </field>
     </record>
 
-    <!-- Generated PDF filename. NOT overriding this action's own `name`
-         field (shown in the Print dropdown): the Enterprise
-         sale_pdf_quote_builder module also sets it (to "PDF Quote") and
-         happens to load its data after combine001 in this install's
-         module graph, silently winning the field - there's no dependency
-         relationship to force a reliable order, so it's not a fight worth
-         having over a rarely-seen technical action label. -->
-    <record id="sale.action_report_saleorder" model="ir.actions.report">
-        <field name="print_report_name">(object.state in ('draft', 'sent') and 'Sales Contract - %s' % (object.name)) or 'Order - %s' % (object.name)</field>
-    </record>
+    <!-- Generated PDF filename and print action's own `name` field are
+         handled together with the "Delivery Order" side of this rename
+         in sale_order_to_delivery_order_views.xml (a single field, only
+         one file may own it). -->
 
-    <!-- PDF report body: title + date label -->
+    <!-- PDF report body: title + date label for the draft/sent (Contract)
+         branch only - the confirmed-order (else) branch is handled in
+         sale_order_to_delivery_order_views.xml, a separate xpath target
+         within the same base template so both compose cleanly. -->
     <template id="report_saleorder_document_combine001" inherit_id="sale.report_saleorder_document">
         <xpath expr="//span[@t-elif=&quot;doc.state in ['draft','sent']&quot;]" position="replace">
-            <span t-elif="doc.state in ['draft','sent']">Sales Contract # </span>
+            <span t-elif="doc.state in ['draft','sent']">Contract # </span>
         </xpath>
         <xpath expr="//strong[@t-elif=&quot;doc.state in ['draft', 'sent']&quot;]" position="replace">
             <strong t-elif="doc.state in ['draft', 'sent']">Contract Date</strong>

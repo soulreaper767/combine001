@@ -147,8 +147,25 @@ class ResCompany(models.Model):
             customer_rank=0, supplier_rank=1, property_field='property_account_payable_id',
         )
         self._combine001_rename_delivery_picking_types(company)
+        self._combine001_ensure_uom_group()
 
         _logger.info("Combine001: import complete - %s accounts on record.", len(account_by_code))
+
+    def _combine001_ensure_uom_group(self):
+        """Change Request Document for Sales Module (2026-09-28) sec. 2.1:
+        UoM must be visible on every sales document line. Odoo hides the
+        UoM field/column behind the 'Units of Measure & Packagings'
+        feature toggle (Settings > General Settings, res.config.settings
+        field `group_uom`) unless `uom.group_uom` is granted - granting
+        it directly on the Internal User group is exactly what that
+        toggle does under the hood, and Odoo's own res.groups.write()
+        cascades a newly-added implied group to every existing member of
+        the group it was added to, not just new users."""
+        group_user = self.env.ref('base.group_user')
+        group_uom = self.env.ref('uom.group_uom')
+        if group_uom not in group_user.implied_ids:
+            group_user.write({'implied_ids': [(4, group_uom.id)]})
+            _logger.info("Combine001: 'Units of Measure' feature enabled for all Internal Users.")
 
     def _combine001_rename_delivery_picking_types(self, company):
         """BRD sec. 7.1: 'Delivery Note' functionality is reused as-is,

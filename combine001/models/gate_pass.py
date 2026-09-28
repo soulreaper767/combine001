@@ -8,8 +8,7 @@ class GatePass(models.Model):
     (via the Delivery Challan itself) - the Gate Pass is purely a
     logistics/security exit document and never touches stock again (BRD
     sec. 8.2: 'Gate Pass should not create an additional stock
-    deduction'), so like Delivery Out this is a plain model with no
-    stock.move of its own.
+    deduction'), so this is a plain model with no stock.move of its own.
     """
     _name = 'combine001.gate.pass'
     _description = 'Gate Pass'
@@ -20,8 +19,7 @@ class GatePass(models.Model):
     picking_id = fields.Many2one(
         'stock.picking', required=True, ondelete='restrict', string='Delivery Challan',
         domain="[('state', '=', 'done'), ('picking_type_code', '=', 'outgoing')]", tracking=True)
-    sale_order_id = fields.Many2one(related='picking_id.sale_id', store=True, string='Contract / Sales Order')
-    delivery_out_id = fields.Many2one(related='picking_id.x_delivery_out_id', store=True)
+    sale_order_id = fields.Many2one(related='picking_id.sale_id', store=True, string='Contract / Delivery Order')
     partner_id = fields.Many2one(related='picking_id.partner_id', store=True, string='Customer')
     x_gst_status = fields.Selection(related='partner_id.x_gst_status', store=True, string='GST Status')
     x_income_tax_status = fields.Selection(related='partner_id.x_income_tax_status', store=True, string='Income Tax Status')

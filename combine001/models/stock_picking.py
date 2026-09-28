@@ -25,15 +25,16 @@ class StockPicking(models.Model):
     or its stock-deduction-on-validate behaviour at all) - only its
     business-facing name changes to 'Delivery Challan' (see
     views/stock_picking_delivery_challan_views.xml for the cosmetic
-    relabeling, same technique as the Quotation -> Sales Contract rename)
-    and it gains a reference back to the Delivery Out it was raised from
-    plus the registration-status fields the BRD wants visible on it.
+    relabeling, same technique as the Quotation -> Contract rename), and
+    it gains the registration-status fields the BRD wants visible on it.
+    Raised directly from the confirmed Delivery Order (sale.order) via
+    Odoo's own native procurement - there is no separate Delivery Out
+    step in between (removed per the Change Request Document for Sales
+    Module, 2026-09-28).
     """
     _name = 'stock.picking'
     _inherit = ['stock.picking', 'combine001.tax.status.mixin']
 
-    x_delivery_out_id = fields.Many2one('combine001.delivery.out', string='Delivery Out', tracking=True,
-                                         help='The Delivery Out this Delivery Challan was raised from (BRD sec. 7.4).')
     x_show_pra_status = fields.Boolean(compute='_compute_x_show_pra_status')
     x_gate_pass_id = fields.Many2one('combine001.gate.pass', compute='_compute_x_gate_pass_id', string='Gate Pass')
 

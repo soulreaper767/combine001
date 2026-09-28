@@ -9,7 +9,6 @@ from . import account_tax
 from . import gst_saving
 from . import sale_amendment
 from . import sale_order
-from . import delivery_out
 from . import stock_move
 from . import stock_picking
 from . import gate_pass

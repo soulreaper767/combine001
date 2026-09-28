@@ -25,8 +25,6 @@ class SaleOrder(models.Model):
     x_show_pra_status = fields.Boolean(compute='_compute_x_show_pra_status', string='Show PRA Status')
     x_amendment_ids = fields.One2many('combine001.sale.amendment', 'sale_order_id', string='Contract Amendments')
     x_amendment_count = fields.Integer(compute='_compute_x_amendment_count')
-    x_delivery_out_ids = fields.One2many('combine001.delivery.out', 'sale_order_id', string='Delivery Outs')
-    x_delivery_out_count = fields.Integer(compute='_compute_x_delivery_out_count')
 
     @api.depends('order_line.product_id.x_pra_applicable')
     def _compute_x_show_pra_status(self):
@@ -39,13 +37,6 @@ class SaleOrder(models.Model):
         ))
         for order in self:
             order.x_amendment_count = counts.get(order, 0)
-
-    def _compute_x_delivery_out_count(self):
-        counts = dict(self.env['combine001.delivery.out']._read_group(
-            [('sale_order_id', 'in', self.ids)], ['sale_order_id'], ['__count'],
-        ))
-        for order in self:
-            order.x_delivery_out_count = counts.get(order, 0)
 
     @api.onchange('commission_agent_id')
     def _onchange_combine001_commission_agent_id(self):
@@ -96,36 +87,6 @@ class SaleOrder(models.Model):
                     'Order %s has a price change pending Sales Manager '
                     'approval and cannot be confirmed yet.', order.name))
         return super().action_confirm()
-
-    def action_combine001_create_delivery_out(self):
-        """BRD sec. 6: Delivery Out is generated from the confirmed Sales
-        Order, mirrors its lines (no stock impact - that only happens
-        later, when the Delivery Challan/stock.picking is validated)."""
-        self.ensure_one()
-        if self.state != 'sale':
-            raise UserError(_('Delivery Out can only be created from a confirmed Sales Order.'))
-        delivery_out = self.env['combine001.delivery.out'].create({
-            'sale_order_id': self.id,
-            'line_ids': [(0, 0, {'sale_line_id': line.id}) for line in self.order_line
-                         if line.product_id and not line.display_type],
-        })
-        return {
-            'type': 'ir.actions.act_window',
-            'res_model': 'combine001.delivery.out',
-            'view_mode': 'form',
-            'res_id': delivery_out.id,
-        }
-
-    def action_view_x_delivery_outs(self):
-        self.ensure_one()
-        return {
-            'type': 'ir.actions.act_window',
-            'name': _('Delivery Outs'),
-            'res_model': 'combine001.delivery.out',
-            'view_mode': 'list,form',
-            'domain': [('sale_order_id', '=', self.id)],
-            'context': {'default_sale_order_id': self.id},
-        }
 
     def action_view_x_amendments(self):
         self.ensure_one()

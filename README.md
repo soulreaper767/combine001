@@ -24,7 +24,7 @@ Odoo 19 custom app implementing the "Odoo ERP Enhancements v1.0" BRD
 | 7 | Separate Tax Ledger + controlled manual adjustment | `views/tax_ledger_views.xml`, `models/tax_adjustment.py` |
 | 10 | Security groups (Tax Officer, Auditor) + audit trail via chatter | `security/combine001_security.xml` |
 | 3.1 | One demo user per defined role, pre-assigned to the right groups | `data/combine001_users_data.xml` |
-| — | "Quotation" relabeled to "Sales Contract" across the Sales app | `views/sale_quotation_to_contract_views.xml` |
+| — | "Quotation" relabeled to "Contract", confirmed order to "Delivery Order" | `views/sale_quotation_to_contract_views.xml`, `views/sale_order_to_delivery_order_views.xml` |
 | — | Finished Goods / Raw Material product catalog import | `models/res_company.py`, data in `data/import/` |
 | — | GST 18%/22% Sale+Purchase taxes, defaulting to 18% | `models/res_company.py`, `models/account_tax.py` |
 | — | "GST Saved" — notional GST tracking when no GST is charged | `models/gst_saving.py`, `models/account_move.py`, `views/gst_saving_views.xml` |
@@ -102,7 +102,7 @@ once known (product's Sales/Purchase tab, or Accounting > Taxes).
 
 **Sale-side rate now follows the buyer's GST registration status**
 (follow-up request): FBR charges a higher rate on supplies to
-unregistered buyers, so a Sales Contract/Order line or a Sales Invoice
+unregistered buyers, so a Contract/Delivery Order line or a Sales Invoice
 line no longer just takes whatever GST tax is configured on the
 product — `models/account_tax.py`'s `_combine001_swap_gst_for_buyer`
 swaps in **18% if the customer's Tax Info tab says Registered, 22% if
@@ -168,20 +168,39 @@ the standard Balance Sheet's own line-folding already lets you
 collapse/expand exactly these two lines to see the delta directly — the
 simpler, safer answer to "give me an easy way to see the impact."
 
-## "Quotation" → "Sales Contract"
+## "Quotation" → "Contract", "Sales Order" → "Delivery Order"
 
 Combine Spinning's trade calls these documents "contracts", not
-"quotations" — `views/sale_quotation_to_contract_views.xml` relabels the
-term across the core Sales app: the main menu (*Sales > Orders > Sales
-Contracts*), list/search view titles, search filters ("My Sales
-Contracts"), the "Set to Sales Contract" button, the "Mark Sales Contract
-as Sent" action, the CRM Team "New Sales Contract" button, the generated
-PDF filename (`Sales Contract - S00001.pdf` instead of
-`Quotation - S00001.pdf`), and the PDF report body itself (title "Sales
-Contract #", "Contract Date" label). **Purely cosmetic** — the underlying
-`sale.order` model, its fields, states (`draft`/`sent`/`sale`), and the
-whole quotation→order workflow are completely unchanged; only the text a
-user sees is different.
+"quotations" — and per the **Change Request Document for Sales Module**
+(2026-09-28), the confirmed order is now called a **Delivery Order**
+(superseding the module's earlier "Sales Contract" wording with plain
+"Contract", to match that document's exact naming table).
+
+`views/sale_quotation_to_contract_views.xml` relabels the draft/sent
+side: the main menu (*Sales > Orders > Contracts*), list/search view
+titles, search filters ("My Contracts"), the "Set to Contract" button,
+the "Mark Contract as Sent" action, the CRM Team "New Contract" button,
+Quotation Templates ("Contract Templates"), the generated PDF filename
+(`Contract - S00001.pdf`), and the PDF report body itself (title
+"Contract #", "Contract Date" label).
+
+`views/sale_order_to_delivery_order_views.xml` relabels the confirmed
+side the same way: the *Sales > Orders > Orders* menu and its action,
+list/calendar/graph/pivot view titles, the "Sales Orders"/"My Orders"
+search filters, the CRM Team kanban dashboard's "Sales Orders" links,
+the PDF filename (`Delivery Order - S00001.pdf`) and report body (title
+"Delivery Order #", "Delivery Order Date" label) — a single
+`ir.actions.report.print_report_name` expression covers both branches
+(`'Contract - %s' or 'Delivery Order - %s'`), owned by this file since a
+plain field can't be split across two data files the way template
+xpaths can.
+
+**Purely cosmetic**, both ways — the underlying `sale.order` model, its
+fields, states (`draft`/`sent`/`sale`), and the whole quotation→order
+workflow are completely unchanged; only the text a user sees is
+different. A "Delivery Order" here is **not** the same document as a
+"Delivery Challan" (see the next section) — it's the confirmed
+Contract/`sale.order` itself, still one record, one document.
 
 Not renamed: the Print-menu action's own technical label (still shows
 "PDF Quote" — that's set by the Enterprise `sale_pdf_quote_builder`
@@ -191,15 +210,30 @@ dependency), and anything outside the core Sales app (Subscriptions, POS,
 Website/eCommerce, email template wording) — out of scope per the chosen
 rename scope.
 
-## Contract → Sales Order → Delivery Out → Delivery Challan → Gate Pass → Sales Invoice
+## Contract → Delivery Order → Delivery Challan → Gate Pass → Sales Invoice
 
-Implements `BRD for sales.docx`. A "Contract" is exactly what the section
-above calls a Sales Contract — a `sale.order` in `draft`/`sent` state; a
-"Sales Order" is the same record once confirmed (`state == 'sale'`). No
-separate Contract model was introduced — the BRD's own title describes
-the change as mapping this flow onto "the existing quotation-to-delivery
-process", and Odoo's native Quotation→Order transition already *is* that
-first step.
+Implements `BRD for sales.docx`, since refined by the **Change Request
+Document for Sales Module** (2026-09-28). A "Contract" is a `sale.order`
+in `draft`/`sent` state; a "Delivery Order" is the same record once
+confirmed (`state == 'sale'`) — see the naming section above. No separate
+Contract model was introduced — the BRD's own title describes the change
+as mapping this flow onto "the existing quotation-to-delivery process",
+and Odoo's native Quotation→Order transition already *is* that first
+step.
+
+A standalone "Delivery Out" document originally sat between the
+Delivery Order and the Delivery Challan (mirroring the confirmed order's
+lines with no stock impact, purely for reference). The Change Request
+explicitly asked for it to be **removed** ("a separate/new Delivery Out
+document should not be created as part of the revised workflow") — the
+Delivery Challan (`stock.picking`) is now created directly from the
+confirmed Delivery Order by Odoo's own native procurement, exactly as
+vanilla Odoo already does when a Sales Order confirms. Removed
+entirely: `models/delivery_out.py`, `views/delivery_out_views.xml`, its
+menu item, its two smart buttons/create-button on the Delivery Order
+form, and the `x_delivery_out_id` field that used to link a Delivery
+Challan back to it (a Delivery Challan links back to its Delivery Order
+directly via the native `sale_id` field instead).
 
 **Price lock.** Once a Contract is confirmed, `sale.order.line.write()`
 (`models/sale_order.py`) blocks any `price_unit`/`product_uom_qty` change
@@ -221,14 +255,6 @@ against the new number afterward, pushes the revised price onto any
 still-draft invoice lines already raised against that line, and chatter-
 logs every apply with user/date/old→new values.
 
-**Delivery Out** (`models/delivery_out.py`, `combine001.delivery.out` +
-`.line`) is a new, plain (non-stock) document created from a confirmed
-Sales Order via the "Create Delivery Out" button. Its lines are
-`related(..., store=True)` back onto the originating `sale.order.line` —
-price/qty changes from a later Contract Amendment reach it automatically,
-with no propagation code and no possibility of a duplicate line, since
-there is exactly one Delivery Out line per Sales Order line.
-
 **Delivery Challan** is the *existing* `stock.picking`/Delivery Note
 functionality, technically untouched (still the only document that
 deducts stock, still only on validation) and cosmetically relabeled
@@ -237,15 +263,50 @@ deducts stock, still only on validation) and cosmetically relabeled
 follows too, and a one-time idempotent rename of each warehouse's
 outgoing `stock.picking.type.name` (real per-company data, done in
 `res_company._combine001_rename_delivery_picking_types`, not a fixed XML
-id). Gained fields: `x_delivery_out_id` (set when raised from a Delivery
-Out), the 3 registration-status fields, and `x_contract_price` on each
-`stock.move` (`related='sale_line_id.price_unit'`).
+id). Gained fields: the 3 registration-status fields, and
+`x_contract_price` on each `stock.move`
+(`related='sale_line_id.price_unit'`). Since it's raised directly by
+native Odoo procurement from the confirmed Delivery Order, there is
+exactly one `stock.move` per order line — no duplication risk, and
+nothing extra for this module to guard against.
+
+**No duplicate lines, anywhere in the chain** (Change Request sec. 6):
+Contract → Delivery Order is the same record (a state change, not a new
+document, so there's nothing to duplicate); Delivery Order → Delivery
+Challan is Odoo's own native procurement, which has always created
+exactly one `stock.move` per order line; Delivery Challan → Sales
+Invoice is Odoo's own native invoicing, which has always created one
+invoice line per order line (per the configured invoicing policy); and a
+Contract Amendment (below) always writes onto the existing line instead
+of creating a new one. None of this needed new code — removing the
+Delivery Out document (the one place that maintained its own separate,
+manually-mirrored line set) was the only piece that could have
+introduced any duplication risk in the first place.
 
 **Gate Pass** (`models/gate_pass.py`, `combine001.gate.pass` + `.line`)
 is created from a *validated* (`state == 'done'`) outgoing Delivery
 Challan via a button on the picking form. One per Delivery Challan
 (DB unique constraint on `picking_id`) — no stock impact, lines mirror
 the challan's own `stock.move`s via `related` fields.
+
+**Unit of Measure** (Change Request sec. 2.1/8): Odoo already has a UoM
+field on every relevant line (`sale.order.line.product_uom_id`,
+`stock.move.product_uom`, `account.move.line.product_uom_id`) and already
+carries it forward automatically between documents (native behaviour,
+no custom code needed) — it's just hidden by default behind the "Units
+of Measure & Packagings" feature toggle (Settings > General Settings).
+`res_company._combine001_ensure_uom_group()` grants `uom.group_uom` to
+`base.group_user` (Internal User) directly — exactly what that Settings
+checkbox does under the hood — so UoM shows on the Contract/Delivery
+Order, Delivery Challan and Sales Invoice for every user, out of the
+box; a small extra view override (`views/account_move_uom_views.xml`)
+forces the invoice line list's UoM column to always show rather than
+leaving it as a user-hideable "optional" column. PDF reports already
+include the same fields, so they pick it up automatically too. Verified
+a newly-created Internal User has the group via `has_group()` (the
+literal `group_ids` field only holds *directly* assigned groups —
+`all_group_ids`/`has_group()` is what resolves the full implied-group
+closure, including this one).
 
 **Tax Info tab** (`models/res_partner.py`, `views/res_partner_views.xml`)
 replaces the BRD's flat Registered/Unregistered checkbox pair with a
@@ -254,9 +315,9 @@ business actually tracks all three independently. All 3 flow onto every
 document above via `models/combine001_tax_status_mixin.py`
 (`combine001.tax.status.mixin`, an `AbstractModel` with 3
 `related(..., store=True)` Selection fields against `partner_id`, mixed
-into `sale.order`, `stock.picking` and `account.move`; Delivery Out/Gate
-Pass declare the same 3 fields directly since their `partner_id` is
-itself `related`). PRA status is deliberately the odd one out: it's
+into `sale.order`, `stock.picking` and `account.move`; Gate Pass declares
+the same 3 fields directly since its `partner_id` is itself `related`).
+PRA status is deliberately the odd one out: it's
 hidden on a document (`x_show_pra_status`, computed per model from that
 document's own lines) unless at least one line's product has the new
 `product.template.x_pra_applicable` flag set (Sales tab) — most of this

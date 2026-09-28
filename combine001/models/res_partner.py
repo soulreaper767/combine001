@@ -16,9 +16,9 @@ class ResPartner(models.Model):
         ('registered', 'Registered'),
         ('unregistered', 'Unregistered'),
     ], string='GST Status', default='unregistered', tracking=True,
-        help='Sales Tax (GST) registration status. Flows onto Sales '
-             'Contracts, Sales Orders, Delivery Out, Delivery Challan, '
-             'Gate Pass and Sales Invoices.')
+        help='Sales Tax (GST) registration status. Flows onto Contracts, '
+             'Delivery Orders, Delivery Challans, Gate Passes and Sales '
+             'Invoices.')
     x_gst_number = fields.Char(string='GST / STRN Number')
 
     x_income_tax_status = fields.Selection([

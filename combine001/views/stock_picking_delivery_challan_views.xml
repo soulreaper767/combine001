@@ -16,10 +16,10 @@
         <field name="print_report_name">'Delivery Challan - %s - %s' % (object.partner_id.name or '', object.name)</field>
     </record>
 
-    <!-- Delivery Out / registration-status fields + "Create Gate Pass" on
-         the picking form, only for outgoing transfers (Delivery Challans)
-         - shown, not renamed: the form's own title already follows the
-         picking type name renamed above. -->
+    <!-- Registration-status fields + "Create Gate Pass" on the picking
+         form, only for outgoing transfers (Delivery Challans) - shown,
+         not renamed: the form's own title already follows the picking
+         type name renamed above. -->
     <record id="view_picking_form_combine001_challan" model="ir.ui.view">
         <field name="name">stock.picking.form.combine001.challan</field>
         <field name="model">stock.picking</field>
@@ -32,9 +32,6 @@
                     <span>Gate Pass</span>
                 </button>
             </xpath>
-            <field name="origin" position="after">
-                <field name="x_delivery_out_id" invisible="picking_type_code != 'outgoing'" readonly="1"/>
-            </field>
             <field name="partner_id" position="after">
                 <field name="x_gst_status" invisible="picking_type_code != 'outgoing'" readonly="1"/>
                 <field name="x_income_tax_status" invisible="picking_type_code != 'outgoing'" readonly="1"/>

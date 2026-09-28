@@ -28,10 +28,11 @@ Implements the Business Requirements Document "Odoo ERP Enhancements v1.0"
   (currency PKR), imports its Customers and Vendors as Contacts, and
   creates one bank/cash journal per real bank account (see
   models/res_company.py / README for what this does and does not touch)
-* Relabels "Quotation" to "Sales Contract" across the core Sales app
-  (menus, buttons, filters, PDF report/print) to match the textile-trade
-  terminology Combine Spinning actually uses — cosmetic only, the
-  underlying sale.order model/workflow is unchanged
+* Relabels the core Sales app's document terminology (menus, buttons,
+  filters, PDF report/print) to match the textile-trade terms Combine
+  Spinning actually uses: Quotation -> Contract, confirmed Sales Order ->
+  Delivery Order, Delivery Note -> Delivery Challan — cosmetic only, the
+  underlying sale.order/stock.picking models and workflow are unchanged
 * Imports the real Finished Goods / Raw Material product catalog (284
   products, 18 categories) mapped onto the client's own Chart of
   Accounts; configures GST 18%/22% Sale + Purchase taxes (18% default);
@@ -39,19 +40,22 @@ Implements the Business Requirements Document "Odoo ERP Enhancements v1.0"
   entirely outside the P&L) whenever an invoice or bill posts with no
   GST charged, computed from the rate on each product's master — see
   models/res_company.py and models/account_move.py / README
-* Implements the "BRD for sales.docx" Contract -> Sales Order -> Delivery
-  Out -> Delivery Challan -> Gate Pass -> Sales Invoice workflow:
-  Contract price is locked the moment the order is confirmed and can
-  only change through a controlled Contract Amendment (draft -> submit
-  -> Sales Manager approval -> apply, full chatter audit trail, always
-  updates the existing line so reapplying never duplicates it); a new
-  no-stock-impact Delivery Out document sits between the Sales Order and
-  delivery; the existing Delivery Note/stock.picking functionality is
-  reused as-is and relabeled "Delivery Challan" (the only document that
-  actually deducts stock, on validation, exactly as before); a new
-  no-stock-impact Gate Pass is raised from a validated Delivery Challan;
-  every document carries the Contract/registration-status reference back
-  to its origin
+* Implements the "BRD for sales.docx" / Change Request Document for
+  Sales Module workflow: Contract -> Delivery Order -> Delivery Challan
+  -> Gate Pass -> Sales Invoice. Contract price is locked the moment the
+  order is confirmed and can only change through a controlled Contract
+  Amendment (draft -> submit -> Sales Manager approval -> apply, full
+  chatter audit trail, always updates the existing line so reapplying
+  never duplicates it); the Delivery Order is generated directly by
+  Odoo's own native procurement on confirmation (no separate "Delivery
+  Out" document/step); the existing Delivery Note/stock.picking
+  functionality is reused as-is and relabeled "Delivery Challan" (the
+  only document that actually deducts stock, on validation, exactly as
+  before); a no-stock-impact Gate Pass is raised from a validated
+  Delivery Challan; every document carries the Contract/registration-
+  status reference back to its origin; Unit of Measure is enabled
+  company-wide and shown on every one of these documents and their PDF
+  reports
 * Customer/Vendor "Tax Info" tab with separate Registered/Unregistered
   (or Filer/Non-Filer) status per tax regime - GST, Income Tax, PRA -
   that flows automatically onto every document above; PRA status is only
@@ -91,7 +95,7 @@ README for the assumptions made and how to change them:
 """,
     'author': 'Sibyl Technologies',
     'license': 'LGPL-3',
-    'depends': ['base', 'mail', 'sale_management', 'sale_stock', 'account'],
+    'depends': ['base', 'mail', 'sale_management', 'sale_stock', 'account', 'uom'],
     'data': [
         'security/combine001_security.xml',
         'security/ir.model.access.csv',
@@ -107,11 +111,12 @@ README for the assumptions made and how to change them:
         'wizard/add_charge_wizard_views.xml',
         'wizard/commission_payment_wizard_views.xml',
         'views/sale_amendment_views.xml',
-        'views/delivery_out_views.xml',
         'views/gate_pass_views.xml',
         'views/sale_order_views.xml',
         'views/sale_quotation_to_contract_views.xml',
+        'views/sale_order_to_delivery_order_views.xml',
         'views/stock_picking_delivery_challan_views.xml',
+        'views/account_move_uom_views.xml',
         'views/tax_adjustment_views.xml',
         'views/tax_ledger_views.xml',
         'views/gst_saving_views.xml',
