@@ -33,7 +33,7 @@ class StockPicking(models.Model):
     Module, 2026-09-28).
     """
     _name = 'stock.picking'
-    _inherit = ['stock.picking', 'combine001.tax.status.mixin']
+    _inherit = ['stock.picking', 'combine001.tax.status.mixin', 'combine001.approval.mixin']
 
     x_show_pra_status = fields.Boolean(compute='_compute_x_show_pra_status')
     x_gate_pass_id = fields.Many2one('combine001.gate.pass', compute='_compute_x_gate_pass_id', string='Gate Pass')
@@ -42,6 +42,20 @@ class StockPicking(models.Model):
     def _compute_x_show_pra_status(self):
         for picking in self:
             picking.x_show_pra_status = bool(picking.move_ids.product_id.filtered('x_pra_applicable'))
+
+    def _combine001_approval_group(self):
+        return 'purchase.group_purchase_manager'
+
+    def button_validate(self):
+        """BRD for Purchase Module Changes sec. 7: Purchase Receipt
+        workflow (Draft -> Submitted -> Approved -> Done) - only
+        enforced for an incoming transfer actually linked to a Purchase
+        Order; every other transfer (Delivery Challan, internal moves,
+        a receipt not tied to a purchase) is completely unaffected."""
+        purchase_receipts = self.filtered(
+            lambda p: p.picking_type_code == 'incoming' and p.purchase_id)
+        purchase_receipts._combine001_check_approved(_('validated'))
+        return super().button_validate()
 
     def _compute_x_gate_pass_id(self):
         gate_passes = self.env['combine001.gate.pass'].search([('picking_id', 'in', self.ids)])

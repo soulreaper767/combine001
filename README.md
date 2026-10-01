@@ -28,6 +28,9 @@ Odoo 19 custom app implementing the "Odoo ERP Enhancements v1.0" BRD
 | — | Finished Goods / Raw Material product catalog import | `models/res_company.py`, data in `data/import/` |
 | — | GST 18%/22% Sale+Purchase taxes, defaulting to 18% | `models/res_company.py`, `models/account_tax.py` |
 | — | "GST Saved" — notional GST tracking when no GST is charged | `models/gst_saving.py`, `models/account_move.py`, `views/gst_saving_views.xml` |
+| — | Purchase BRD: RFQ/PO approval + price/qty lock + PO Amendment | `models/purchase_order.py`, `models/purchase_amendment.py` |
+| — | Purchase BRD: Receipt + Vendor Bill approval workflow | `models/combine001_approval_mixin.py`, `models/stock_picking.py`, `models/account_move.py` |
+| — | Purchase BRD: Purchase Commission Agent (Draft→Confirmed→Payable→Paid) | `models/purchase_commission_line.py` |
 
 ## Products, Categories & Chart of Accounts mapping
 
@@ -426,6 +429,114 @@ resulting journal entry checked line-by-line, sale-side expected-vs-
 actual variance math (including an intentionally over-withheld case),
 an exemption period resolving to its reduced rate then correctly
 expiring back to no-rate, and the variance report's own domain — all
+passing.
+
+## RFQ → PO → Receipt → Vendor Bill → Payment → Commission (Purchase Module)
+
+Implements `BRD for Purchase Module Changes in Odoo.docx`. An "RFQ" is a
+`purchase.order` in `draft`/`sent` state; a "PO" is the same record
+confirmed (`state == 'purchase'`) - no separate RFQ/PO models, same
+reasoning as Contract/Delivery Order on the sales side.
+
+**RFQ/PO approval - native, not custom.** Unlike Receipt and Vendor
+Bill (below), Odoo already ships a near-identical mechanism for exactly
+this: `company.po_double_validation` routes `button_confirm()` through a
+`'to approve'` state gated to `purchase.group_purchase_manager` before
+it becomes a PO. `res_company._combine001_ensure_po_approval()` forces
+this on unconditionally (amount threshold 0, so it applies regardless
+of value, not just above a limit) rather than layering a second,
+redundant approval state on top of `purchase.order`.
+`models/purchase_order.py` reinforces the native `button_approve()` with
+an explicit Python-level group check (the native button is only guarded
+by a view-level `groups=`, bypassable via RPC) and adds the two audit
+fields Odoo doesn't track natively (`x_approved_by` - `date_approve`
+already exists; `x_rejection_reason`, captured by a new
+`action_combine001_reject()` that wraps `button_draft()`).
+
+**Price/quantity lock** (BRD sec. 5): once confirmed, `purchase.order.line.write()`
+blocks `product_id`/`price_unit`/`product_qty` changes outright, same
+pattern as the Contract price lock. The only door through it is a
+**PO Amendment** (`models/purchase_amendment.py`,
+`combine001.purchase.amendment` + `.line`) — draft → submit → Purchase
+Manager approval → apply, writing onto the *same* existing line (never
+duplicates), chatter-logged.
+
+At Receipt level (sec. 5.3), the *approved* quantity (`stock.move.product_uom_qty`,
+the "Demand") is locked the same way once linked to a confirmed PO -
+but the *actual received* quantity (`quantity`) is deliberately left
+alone, since that's exactly how Odoo already models a short/excess/
+partial receipt (via backorders) without altering the approved figure.
+At Vendor Bill level (sec. 5.4), `account.move.line.write()` (already
+guarded for the sales side) gained the same lock for bill lines linked
+back to a `purchase_line_id`.
+
+**Receipt and Vendor Bill approval - custom, because no native
+equivalent exists.** Unlike RFQ/PO, Odoo has no manager-approval gate
+before `stock.picking.button_validate()` or `account.move.action_post()`
+for a bill. `models/combine001_approval_mixin.py`
+(`combine001.approval.mixin`) provides a generic Draft → Submitted →
+Approved → Rejected state machine with its own audit trail
+(submitted/approved/rejected by + when), mixed into `stock.picking`
+(scoped to incoming transfers actually linked to a Purchase Order -
+Delivery Challans and plain internal transfers are untouched) and
+`account.move` (scoped to `in_invoice`/`in_refund` - Sales Invoices are
+untouched). Each inheriting model supplies which group may approve
+(Purchase Manager for Receipts, Accounts Manager for Vendor Bills, per
+BRD sec. 17's role table) and calls `_combine001_check_approved()` from
+its own `button_validate()`/`action_post()` override.
+
+**Purchase Commission** (sec. 10-13): reuses the same
+`combine001.commission.agent` master as the sales side (it was already
+generic). A new `combine001.purchase.commission.line`
+(`models/purchase_commission_line.py`) is created per Vendor Bill line
+linked back to a PO line, once the bill posts - unlike the sales side's
+flat Unpaid/Paid, the BRD explicitly asks for a 4-state workflow here:
+
+- **Draft** - just generated.
+- **Confirmed** - reviewed and locked in (manual action).
+- **Payable** - the *vendor* has actually been paid in full
+  (`x_bill_paid`, computed from the bill's own `payment_state`) - a
+  manual `action_mark_payable()` rather than a silent auto-transition,
+  consistent with how the sales side's commission is also always marked
+  Paid explicitly, not magically.
+- **Paid** - the *commission* itself has been paid to the agent, via
+  the same bulk "Mark as Paid" wizard pattern as the sales side
+  (`combine001.purchase.commission.payment.wizard`, payment
+  reference/date).
+
+`commission_basis` (configurable per PO, sec. 10.2's explicit ask) picks
+what the percentage applies against - PO value, received value
+(`qty_received × price_unit`), vendor invoice value, or paid value (the
+proportional share of whatever's actually been paid against the bill so
+far, live-recomputed as payments apply) - `base_amount`/
+`commission_amount` are both stored computes so they stay correct
+automatically as the underlying PO/receipt/payment data changes. A
+simplified `payment_status` (Paid/Unpaid) field gives the flat view
+sec. 12 asks the report to show, alongside the full `state`.
+
+**Duplicate-line prevention** (sec. 21, same reasoning as the sales
+side's Change Request): satisfied natively once there's no extra
+document layer duplicating lines - Odoo's own procurement creates one
+`stock.move` per PO line, one commission line is guarded by a DB unique
+constraint on `vendor_bill_line_id`, and a PO Amendment always writes
+onto the existing line.
+
+**New security roles** (sec. 17): Purchase User / Purchase Manager
+(wrapping native `purchase.group_purchase_user`/`_manager`, same
+Combine001-branded-group pattern as every other role in this module) -
+Warehouse User and Accountant/Finance Manager (sec. 17's Warehouse User
+and Accounts User/Manager) already existed and are reused as-is.
+
+Verified: fresh install + 2 upgrade cycles clean, and a 32-assertion
+functional test covering the full chain end-to-end - non-manager RFQ
+confirmation routing to "to approve", a blocked non-manager approval
+attempt, the price lock, a PO amendment changing the approved price,
+the Receipt approval gate blocking validation until approved, the
+demand-qty lock vs. a freely-different actual-received qty, the Vendor
+Bill approval gate (and confirming a Purchase Manager specifically
+*cannot* approve a bill, only an Accounts Manager can), the purchase
+commission's full Draft→Confirmed→Payable→Paid lifecycle gated on the
+vendor bill actually being paid, and the bulk payment wizard - all
 passing.
 
 ## Roles & demo users (BRD Section 3.1)

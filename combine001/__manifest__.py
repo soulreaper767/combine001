@@ -75,6 +75,17 @@ Implements the Business Requirements Document "Odoo ERP Enhancements v1.0"
   new leaf sale-side — see models/account_payment.py / README), and a
   Withholding Tax Variance report comparing what a customer actually
   withheld against what the configured rate says they should have
+* Implements the "BRD for Purchase Module Changes in Odoo": RFQ/PO price
+  and quantity lock on confirmation (same amendment-only escape hatch as
+  the sales side), RFQ approval via Odoo's own native PO double-
+  validation (forced on for every RFQ regardless of amount) reinforced
+  with an explicit Purchase Manager check, a matching custom approval
+  workflow (Draft -> Submitted -> Approved -> Done/Posted, with Reject)
+  for Purchase Receipt and Vendor Bill (which have no native equivalent),
+  a PO Amendment process mirroring Contract Amendments, and a Purchase
+  Commission Agent process (Draft -> Confirmed -> Payable -> Paid,
+  configurable commission basis: PO/received/invoice/paid value) linked
+  through to the vendor payment
 
 Several points are explicitly left open in the BRD for client sign-off
 (Section 12, "Open Items for Functional Design"). This module ships a
@@ -95,7 +106,7 @@ README for the assumptions made and how to change them:
 """,
     'author': 'Sibyl Technologies',
     'license': 'LGPL-3',
-    'depends': ['base', 'mail', 'sale_management', 'sale_stock', 'account', 'uom'],
+    'depends': ['base', 'mail', 'sale_management', 'sale_stock', 'account', 'uom', 'purchase', 'purchase_stock'],
     'data': [
         'security/combine001_security.xml',
         'security/ir.model.access.csv',
@@ -111,12 +122,17 @@ README for the assumptions made and how to change them:
         'wizard/add_charge_wizard_views.xml',
         'wizard/commission_payment_wizard_views.xml',
         'views/sale_amendment_views.xml',
+        'views/purchase_amendment_views.xml',
+        'views/purchase_commission_line_views.xml',
         'views/gate_pass_views.xml',
         'views/sale_order_views.xml',
         'views/sale_quotation_to_contract_views.xml',
         'views/sale_order_to_delivery_order_views.xml',
         'views/stock_picking_delivery_challan_views.xml',
         'views/account_move_uom_views.xml',
+        'views/purchase_order_views.xml',
+        'views/stock_picking_purchase_views.xml',
+        'views/account_move_purchase_views.xml',
         'views/tax_adjustment_views.xml',
         'views/tax_ledger_views.xml',
         'views/gst_saving_views.xml',

@@ -148,8 +148,26 @@ class ResCompany(models.Model):
         )
         self._combine001_rename_delivery_picking_types(company)
         self._combine001_ensure_uom_group()
+        self._combine001_ensure_po_approval(company)
 
         _logger.info("Combine001: import complete - %s accounts on record.", len(account_by_code))
+
+    def _combine001_ensure_po_approval(self, company):
+        """BRD for Purchase Module Changes sec. 4/6: 'Only approved RFQs
+        can be confirmed' / 'Unauthorized users should not be able to
+        approve RFQs'. Odoo already ships a native mechanism for exactly
+        this - company.po_double_validation ('two_step' routes
+        confirmation through a 'to approve' state gated to
+        purchase.group_purchase_manager) - forced on unconditionally
+        here (amount threshold 0, so it applies to every RFQ regardless
+        of value) rather than building a second, redundant approval
+        state machine on top of purchase.order (see
+        combine001_approval_mixin.py's docstring for the same reasoning
+        applied to Receipt/Vendor Bill, which have no native equivalent
+        and DO get the custom mixin)."""
+        if company.po_double_validation != 'two_step' or company.po_double_validation_amount != 0:
+            company.write({'po_double_validation': 'two_step', 'po_double_validation_amount': 0})
+            _logger.info("Combine001: PO double-validation (approval) enabled for every RFQ regardless of amount.")
 
     def _combine001_ensure_uom_group(self):
         """Change Request Document for Sales Module (2026-09-28) sec. 2.1:

@@ -8,7 +8,7 @@ _GST_MOVE_TYPES = ('out_invoice', 'out_refund', 'in_invoice', 'in_refund')
 
 class AccountMove(models.Model):
     _name = 'account.move'
-    _inherit = ['account.move', 'combine001.tax.status.mixin']
+    _inherit = ['account.move', 'combine001.tax.status.mixin', 'combine001.approval.mixin']
 
     x_sale_order_id = fields.Many2one(
         'sale.order', compute='_compute_x_sale_order_id', string='Contract / Sales Order', store=True)
@@ -18,6 +18,9 @@ class AccountMove(models.Model):
     def _compute_x_sale_order_id(self):
         for move in self:
             move.x_sale_order_id = move.invoice_line_ids.sale_line_ids.order_id[:1]
+
+    def _combine001_approval_group(self):
+        return 'account.group_account_manager'
 
     @api.depends('invoice_line_ids.product_id.x_pra_applicable')
     def _compute_x_show_pra_status(self):
@@ -36,12 +39,16 @@ class AccountMove(models.Model):
 
     def action_post(self):
         invoices = self.filtered(lambda m: m.move_type == 'out_invoice')
+        bills = self.filtered(lambda m: m.move_type in ('in_invoice', 'in_refund'))
         gst_relevant = self.filtered(lambda m: m.move_type in _GST_MOVE_TYPES)
         for move in invoices:
             move._combine001_check_invoice_qty()
+        bills._combine001_check_approved(_('posted'))
         res = super().action_post()
         for move in invoices:
             move._combine001_create_commission_lines()
+        for move in bills:
+            move._combine001_create_purchase_commission_lines()
         for move in gst_relevant:
             move._combine001_create_gst_saving_line()
         return res
@@ -93,6 +100,34 @@ class AccountMove(models.Model):
                 'base_amount': base_amount,
                 'rate': rate,
                 'commission_amount': commission_amount,
+            })
+
+    def _combine001_create_purchase_commission_lines(self):
+        """Mirror of _combine001_create_commission_lines for the
+        purchase side (BRD for Purchase Module Changes sec. 10) - the
+        actual base_amount/commission_amount are computed live on
+        combine001.purchase.commission.line itself (depends on the
+        configured commission_basis), not here; this only creates the
+        record, once, per bill line linked back to a PO line."""
+        self.ensure_one()
+        PurchaseCommissionLine = self.env['combine001.purchase.commission.line']
+        for line in self.invoice_line_ids:
+            purchase_line = line.purchase_line_id
+            if not purchase_line:
+                continue
+            order = purchase_line.order_id
+            if not order.commission_agent_id:
+                continue
+            if PurchaseCommissionLine.search_count([('vendor_bill_line_id', '=', line.id)]):
+                continue
+            PurchaseCommissionLine.create({
+                'agent_id': order.commission_agent_id.id,
+                'purchase_order_id': order.id,
+                'purchase_line_id': purchase_line.id,
+                'vendor_bill_id': self.id,
+                'vendor_bill_line_id': line.id,
+                'rate': order.commission_rate or order.commission_agent_id.default_rate,
+                'commission_basis': order.commission_basis,
             })
 
     def _combine001_create_gst_saving_line(self):
@@ -176,12 +211,15 @@ class AccountMove(models.Model):
 
 
 class AccountMoveLine(models.Model):
-    """BRD sec. 9/11: the Contract-approved price flows to the Sales
-    Invoice and cannot be manually overridden there either - only a
-    Contract amendment (applied with the combine001_amendment_apply
-    context, see sale_amendment.py) may change it. Only enforced while
-    the invoice is still draft: once posted it's a real financial record,
-    corrected the normal accounting way (credit note), not rewritten."""
+    """BRD sec. 9/11 (sales) and BRD for Purchase Module Changes sec. 5.4
+    (purchase): the Contract/PO-approved price flows to the Sales
+    Invoice/Vendor Bill and cannot be manually overridden there either -
+    only a Contract/PO amendment (applied with the
+    combine001_amendment_apply context, see sale_amendment.py /
+    purchase_amendment.py) may change it. Only enforced while the
+    invoice/bill is still draft: once posted it's a real financial
+    record, corrected the normal accounting way (credit note), not
+    rewritten."""
     _inherit = 'account.move.line'
 
     @api.depends('move_id.partner_id.x_gst_status')
@@ -194,11 +232,20 @@ class AccountMoveLine(models.Model):
     def write(self, vals):
         if ('price_unit' in vals or 'quantity' in vals) and not self.env.context.get('combine001_amendment_apply'):
             for line in self:
-                if line.sale_line_ids and line.move_id.state == 'draft' and line.move_id.move_type == 'out_invoice':
+                if line.move_id.state != 'draft':
+                    continue
+                if line.sale_line_ids and line.move_id.move_type == 'out_invoice':
                     raise UserError(_(
                         "%(product)s: the price/quantity on this invoice line comes "
                         "from a Contract and cannot be changed directly. Use a "
                         "Contract Amendment instead.",
+                        product=line.product_id.display_name,
+                    ))
+                if line.purchase_line_id and line.move_id.move_type in ('in_invoice', 'in_refund'):
+                    raise UserError(_(
+                        "%(product)s: this price/quantity is locked because the related RFQ "
+                        "has been confirmed. Please use the approved amendment process to "
+                        "make changes.",
                         product=line.product_id.display_name,
                     ))
         return super().write(vals)

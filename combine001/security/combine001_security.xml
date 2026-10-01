@@ -19,6 +19,11 @@
         <field name="category_id" ref="module_category_combine001"/>
         <field name="sequence">10</field>
     </record>
+    <record id="privilege_combine001_purchase" model="res.groups.privilege">
+        <field name="name">Purchase</field>
+        <field name="category_id" ref="module_category_combine001"/>
+        <field name="sequence">15</field>
+    </record>
     <record id="privilege_combine001_warehouse" model="res.groups.privilege">
         <field name="name">Warehouse</field>
         <field name="category_id" ref="module_category_combine001"/>
@@ -59,6 +64,22 @@
         <field name="sequence">20</field>
         <field name="implied_ids" eval="[(4, ref('group_combine001_sales_user')), (4, ref('sales_team.group_sale_manager'))]"/>
         <field name="comment">Approves price changes/discounts beyond user authority; oversees the sales team (BRD role: Sales Manager).</field>
+    </record>
+
+    <!-- Purchase (BRD for Purchase Module Changes sec. 17) -->
+    <record id="group_combine001_purchase_user" model="res.groups">
+        <field name="name">Purchase User</field>
+        <field name="privilege_id" ref="privilege_combine001_purchase"/>
+        <field name="sequence">10</field>
+        <field name="implied_ids" eval="[(4, ref('purchase.group_purchase_user'))]"/>
+        <field name="comment">Creates RFQs, submits them for approval, processes day-to-day purchasing (BRD role: Purchase User).</field>
+    </record>
+    <record id="group_combine001_purchase_manager" model="res.groups">
+        <field name="name">Purchase Manager</field>
+        <field name="privilege_id" ref="privilege_combine001_purchase"/>
+        <field name="sequence">20</field>
+        <field name="implied_ids" eval="[(4, ref('group_combine001_purchase_user')), (4, ref('purchase.group_purchase_manager'))]"/>
+        <field name="comment">Approves/rejects RFQs, POs and PO Amendments; oversees purchasing (BRD role: Purchase Manager).</field>
     </record>
 
     <!-- Warehouse -->

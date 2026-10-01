@@ -23,4 +23,12 @@
         <field name="padding">4</field>
         <field name="company_id" eval="False"/>
     </record>
+
+    <record id="seq_purchase_amendment" model="ir.sequence">
+        <field name="name">Combine001 PO Amendment</field>
+        <field name="code">combine001.purchase.amendment</field>
+        <field name="prefix">PAMD/%(year)s/</field>
+        <field name="padding">4</field>
+        <field name="company_id" eval="False"/>
+    </record>
 </odoo>

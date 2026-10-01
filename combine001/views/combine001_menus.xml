@@ -20,11 +20,19 @@
     <menuitem id="menu_combine001_sale_amendment" name="Contract Amendments"
               parent="menu_combine001_logistics" action="action_sale_amendment" sequence="30"/>
 
+    <menuitem id="menu_combine001_purchase" name="Purchase"
+              parent="menu_combine001_root" sequence="17"
+              groups="combine001.group_combine001_purchase_user,combine001.group_combine001_purchase_manager,combine001.group_auditor"/>
+    <menuitem id="menu_combine001_purchase_amendment" name="PO Amendments"
+              parent="menu_combine001_purchase" action="action_purchase_amendment" sequence="10"/>
+
     <menuitem id="menu_combine001_commission" name="Commission"
               parent="menu_combine001_root" sequence="20"
-              groups="sales_team.group_sale_manager,account.group_account_user,combine001.group_auditor"/>
-    <menuitem id="menu_combine001_commission_line" name="Commission Report"
+              groups="sales_team.group_sale_manager,account.group_account_user,combine001.group_combine001_purchase_manager,combine001.group_auditor"/>
+    <menuitem id="menu_combine001_commission_line" name="Sales Commission Report"
               parent="menu_combine001_commission" action="action_commission_line" sequence="10"/>
+    <menuitem id="menu_combine001_purchase_commission_line" name="Purchase Commission Report"
+              parent="menu_combine001_commission" action="action_purchase_commission_line" sequence="20"/>
 
     <menuitem id="menu_combine001_taxation" name="Taxation"
               parent="menu_combine001_root" sequence="30"
@@ -51,4 +59,10 @@
               parent="menu_combine001_audit" action="action_audit_payments" sequence="30"/>
     <menuitem id="menu_combine001_audit_deliveries" name="Deliveries"
               parent="menu_combine001_audit" action="action_audit_deliveries" sequence="40"/>
+    <menuitem id="menu_combine001_audit_purchase_orders" name="RFQs / Purchase Orders"
+              parent="menu_combine001_audit" action="action_audit_purchase_orders" sequence="50"/>
+    <menuitem id="menu_combine001_audit_vendor_bills" name="Vendor Bills"
+              parent="menu_combine001_audit" action="action_audit_vendor_bills" sequence="60"/>
+    <menuitem id="menu_combine001_audit_receipts" name="Receipts"
+              parent="menu_combine001_audit" action="action_audit_receipts" sequence="70"/>
 </odoo>

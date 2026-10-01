@@ -1,4 +1,5 @@
 from . import combine001_tax_status_mixin
+from . import combine001_approval_mixin
 from . import product_template
 from . import res_partner
 from . import customer_item_limit
@@ -9,6 +10,9 @@ from . import account_tax
 from . import gst_saving
 from . import sale_amendment
 from . import sale_order
+from . import purchase_amendment
+from . import purchase_order
+from . import purchase_commission_line
 from . import stock_move
 from . import stock_picking
 from . import gate_pass
